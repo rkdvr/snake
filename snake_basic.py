@@ -2,8 +2,8 @@ import os
 import random
 
 # ── Constants ──────────────────────────────────────────────────────────────────
-GRID_WIDTH  = 9
-GRID_HEIGHT = 12
+GRID_WIDTH  = 10
+GRID_HEIGHT = 10
 
 EMPTY = '.'
 HEAD  = 'M'
