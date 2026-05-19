@@ -138,7 +138,7 @@ check("Collision detected when snake hits the right wall",
       check_collision([[GRID_WIDTH, 10], [GRID_WIDTH - 1, 10]]) is not None)
 
 check("No collision when snake is safely inside the grid",
-      check_collision([[10, 10], [9, 10]]) == False)
+      check_collision([[4, 6], [3, 6]]) == False)
 
 
 # ── 5. Self collision ──────────────────────────────────────────────────────────
