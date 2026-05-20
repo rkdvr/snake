@@ -1,5 +1,5 @@
 """
-snake_test.py
+test_snake_basic.py
 ─────────────
 Tests for snake_basic.py
 

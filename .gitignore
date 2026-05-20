@@ -4,7 +4,14 @@
 # Python cache
 __pycache__/
 *.pyc
+*.pyo
 
 # Environment folders
 env/
 venv/
+
+# Pytest cache
+.pytest_cache/
+
+# VS Code
+.vscode/
