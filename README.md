@@ -23,15 +23,19 @@ What makes Snake a compelling programming project is how naturally it maps to co
 4. Run the game:
    ```
    python src/snake_basic.py
-   python src/snake_intermediate.py
-   python src/snake_advanced.py
+   python src/snake_pygame.py
+   python src/snake_solver.py
    ```
 
 ## Running Tests
 ```
-PYTHONPATH=. python tests/test_snake_basic.py
-PYTHONPATH=. python tests/test_snake_intermediate.py
-PYTHONPATH=. python tests/test_snake_advanced.py
+pytest tests/test_snake_basic.py
+pytest tests/test_snake_pygame.py
+pytest tests/test_snake_solver.py
+```
+or run all:
+```
+pytest tests/ -v
 ```
 
 ## Project Structure
@@ -39,12 +43,14 @@ PYTHONPATH=. python tests/test_snake_advanced.py
 snake/
 ├── src/                  
 │   ├── snake_basic.py
-│   ├── snake_intermediate.py
-│   └── snake_advanced.py
+│   ├── snake_pygame.py
+│   └── snake_solver.py
 ├── tests/                
 │   └── test_snake_basic.py
+│   └── test_snake_pygame.py
+│   └── test_snake_solver.py
 ├── .gitignore
-├── environment.yml
+├── environment.yaml
 ├── requirements.txt
 └── README.md
 ```

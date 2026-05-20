@@ -4,6 +4,7 @@ channels:
   - defaults
 dependencies:
   - python=3.13
+  - pytest
   - jupyterlab       # keep if project has .ipynb files
   - pip
   - pip:
