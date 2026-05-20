@@ -9,17 +9,23 @@ What makes Snake a compelling programming project is how naturally it maps to co
 
 ## Setup
 1. Clone the repo:
+   ```
    git clone <your-repo-url>
    cd snake
+   ```
 
-2. Create and activate the environment:
-   ```conda env create -f environment.yaml```
-   ```conda activate snake_environment```
+3. Create and activate the environment:
+   ```
+   conda env create -f environment.yaml
+   conda activate snake_environment
+   ```
 
-3. Run the game:
+4. Run the game:
+   ```
    python src/snake_basic.py
    python src/snake_intermediate.py
    python src/snake_advanced.py
+   ```
 
 ## Project Structure
 ```
