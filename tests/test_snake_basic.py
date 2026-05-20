@@ -11,7 +11,7 @@ No external libraries required.
 """
 
 import random
-from snake_basic import (
+from src.snake_basic import (
     spawn_food,
     move_snake,
     check_collision,

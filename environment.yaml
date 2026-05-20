@@ -1,0 +1,10 @@
+name: snake_environment
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.13
+  - jupyterlab       # keep if project has .ipynb files
+  - pip
+  - pip:
+    - pygame
