@@ -21,7 +21,7 @@ A Snake game built with Python and Pygame.
    python src/snake_advanced.py
 
 ## Project Structure
-'''
+```
 snake/
 ├── src/                  
 │   ├── snake_basic.py
@@ -33,7 +33,7 @@ snake/
 ├── environment.yml
 ├── requirements.txt
 └── README.md
-'''
+```
 
 ## Authors
 - Lois Celorico
