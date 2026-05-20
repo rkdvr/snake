@@ -1,16 +1,17 @@
 """
-test_snake_basic.py
-─────────────
-Tests for snake_basic.py
+test_snake_basic.py — pytest test suite for snake_basic.py
 
 Run with:
-    python snake_test.py
-
-All tests print PASS or FAIL with a short description.
-No external libraries required.
+    pytest tests/test_snake_basic.py -v
 """
 
+import os
+import sys
 import random
+import pytest
+
+# ── Import module under test ──────────────────────────────────────────────────
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from src.snake_basic import (
     spawn_food,
     move_snake,
@@ -23,214 +24,177 @@ from src.snake_basic import (
 )
 
 
-# ── Test runner ────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. Food Spawning
+# ─────────────────────────────────────────────────────────────────────────────
 
-passed = 0
-failed = 0
+class TestFoodSpawning:
+    def test_food_not_on_snake(self):
+        random.seed(42)
+        snake = [[10, 10]]
+        food = spawn_food(snake)
+        assert food not in snake
 
-def check(label, condition):
-    global passed, failed
-    if condition:
-        print(f"  PASS — {label}")
-        passed += 1
-    else:
-        print(f"  FAIL — {label}")
-        failed += 1
+    def test_food_within_bounds(self):
+        random.seed(42)
+        food = spawn_food([[10, 10]])
+        assert 0 <= food[0] < GRID_WIDTH
+        assert 0 <= food[1] < GRID_HEIGHT
 
+    def test_same_seed_produces_same_food(self):
+        random.seed(42)
+        food_a = spawn_food([[10, 10]])
+        random.seed(42)
+        food_b = spawn_food([[10, 10]])
+        assert food_a == food_b
 
-# ── 1. Food spawning ───────────────────────────────────────────────────────────
-
-print("\n[ Food Spawning ]")
-
-random.seed(42)
-snake = [[10, 10]]
-food = spawn_food(snake)
-
-check("Food does not spawn on the snake",
-      food not in snake)
-
-check("Food is within grid bounds",
-      0 <= food[0] < GRID_WIDTH and 0 <= food[1] < GRID_HEIGHT)
-
-# Reproducibility — same seed always gives same food
-random.seed(42)
-food_a = spawn_food([[10, 10]])
-random.seed(42)
-food_b = spawn_food([[10, 10]])
-check("Same seed always produces the same food position",
-      food_a == food_b)
-
-# Food should never land on a long snake
-random.seed(0)
-long_snake = [[i, 0] for i in range(18)]   # 18 cells along the top row
-long_food  = spawn_food(long_snake)
-check("Food never spawns on a long snake",
-      long_food not in long_snake)
+    def test_food_not_on_long_snake(self):
+        random.seed(0)
+        long_snake = [[i, 0] for i in range(18)]
+        food = spawn_food(long_snake)
+        assert food not in long_snake
 
 
-# ── 2. Movement ────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. Movement
+# ─────────────────────────────────────────────────────────────────────────────
 
-print("\n[ Movement ]")
+class TestMovement:
+    def test_move_right_increases_x(self):
+        snake = [[10, 10]]
+        assert move_snake(snake, 'D')[0] == [11, 10]
 
-snake = [[10, 10]]
+    def test_move_left_decreases_x(self):
+        snake = [[10, 10]]
+        assert move_snake(snake, 'A')[0] == [9, 10]
 
-new_snake = move_snake(snake, 'D')   # move right
-check("Moving right increases x by 1",
-      new_snake[0] == [11, 10])
+    def test_move_up_decreases_y(self):
+        snake = [[10, 10]]
+        assert move_snake(snake, 'W')[0] == [10, 9]
 
-new_snake = move_snake(snake, 'A')   # move left
-check("Moving left decreases x by 1",
-      new_snake[0] == [9, 10])
-
-new_snake = move_snake(snake, 'W')   # move up
-check("Moving up decreases y by 1",
-      new_snake[0] == [10, 9])
-
-new_snake = move_snake(snake, 'S')   # move down
-check("Moving down increases y by 1",
-      new_snake[0] == [10, 11])
-
-
-# ── 3. Growth ──────────────────────────────────────────────────────────────────
-
-print("\n[ Growth ]")
-
-snake     = [[10, 10]]
-food      = [11, 10]   # food is one step to the right
-
-# Move toward food
-new_snake = move_snake(snake, 'D')
-ate_food  = new_snake[0] == food
-
-if ate_food:
-    grown_snake = new_snake           # grow: keep full list
-else:
-    grown_snake = new_snake[:-1]      # move: drop tail
-
-check("Snake grows by exactly 1 cell when food is eaten",
-      ate_food and len(grown_snake) == len(snake) + 1)
-
-# Move without food — length should stay the same
-snake2    = [[10, 10], [9, 10]]       # length 2
-food2     = [0, 0]                    # food far away
-new2      = move_snake(snake2, 'D')
-no_eat    = new2[0] != food2
-moved     = new2[:-1] if no_eat else new2
-
-check("Snake length stays the same when no food is eaten",
-      len(moved) == len(snake2))
+    def test_move_down_increases_y(self):
+        snake = [[10, 10]]
+        assert move_snake(snake, 'S')[0] == [10, 11]
 
 
-# ── 4. Wall collision ──────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. Growth
+# ─────────────────────────────────────────────────────────────────────────────
 
-print("\n[ Wall Collision ]")
+class TestGrowth:
+    def test_snake_grows_when_food_eaten(self):
+        snake = [[10, 10]]
+        food = [11, 10]
+        new_snake = move_snake(snake, 'D')
+        ate_food = new_snake[0] == food
+        assert ate_food
+        assert len(new_snake) == len(snake) + 1
 
-check("Collision detected when snake hits the top wall",
-      check_collision([[10, -1], [10, 0]]) is not None)
-
-check("Collision detected when snake hits the bottom wall",
-      check_collision([[10, GRID_HEIGHT], [10, GRID_HEIGHT - 1]]) is not None)
-
-check("Collision detected when snake hits the left wall",
-      check_collision([[-1, 10], [0, 10]]) is not None)
-
-check("Collision detected when snake hits the right wall",
-      check_collision([[GRID_WIDTH, 10], [GRID_WIDTH - 1, 10]]) is not None)
-
-check("No collision when snake is safely inside the grid",
-      check_collision([[4, 6], [3, 6]]) == False)
-
-
-# ── 5. Self collision ──────────────────────────────────────────────────────────
-
-print("\n[ Self Collision ]")
-
-# Snake folded back on itself
-self_colliding = [[5, 5], [5, 6], [5, 7], [6, 7], [6, 6], [6, 5], [5, 5]]
-check("Collision detected when head overlaps body",
-      check_collision(self_colliding) is not None)
-
-safe_snake = [[5, 5], [4, 5], [3, 5]]
-check("No collision when snake body is clear",
-      check_collision(safe_snake) == False)
+    def test_snake_length_unchanged_without_food(self):
+        snake = [[10, 10], [9, 10]]
+        food = [0, 0]
+        new_snake = move_snake(snake, 'D')
+        no_eat = new_snake[0] != food
+        moved = new_snake[:-1] if no_eat else new_snake
+        assert len(moved) == len(snake)
 
 
-# ── 6. 180° reversal prevention ───────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. Wall Collision
+# ─────────────────────────────────────────────────────────────────────────────
 
-print("\n[ 180° Reversal Prevention ]")
+class TestWallCollision:
+    def test_collision_top_wall(self):
+        assert check_collision([[10, -1], [10, 0]]) is not None
 
-check("Opposite of W is S",  OPPOSITES['W'] == 'S')
-check("Opposite of S is W",  OPPOSITES['S'] == 'W')
-check("Opposite of A is D",  OPPOSITES['A'] == 'D')
-check("Opposite of D is A",  OPPOSITES['D'] == 'A')
+    def test_collision_bottom_wall(self):
+        assert check_collision([[10, GRID_HEIGHT], [10, GRID_HEIGHT - 1]]) is not None
 
-# Simulate reversal block
-current_direction = 'D'
-attempted_move    = 'A'
-blocked = attempted_move == OPPOSITES[current_direction]
-check("Moving left while facing right is blocked",
-      blocked)
+    def test_collision_left_wall(self):
+        assert check_collision([[-1, 10], [0, 10]]) is not None
 
-# Non-reversal should be allowed
-attempted_move_2 = 'W'
-not_blocked = attempted_move_2 != OPPOSITES[current_direction]
-check("Moving up while facing right is allowed",
-      not_blocked)
+    def test_collision_right_wall(self):
+        assert check_collision([[GRID_WIDTH, 10], [GRID_WIDTH - 1, 10]]) is not None
 
-# Everything after an invalid move should be ignored
-# Simulate: facing D, input string "DDADDWW"
-# D → valid, D → valid, A → INVALID (reversal), D/W/W → should be ignored
-def simulate_move_string(move_string, start_direction):
-    """Returns the list of moves actually executed before hitting a reversal."""
-    direction = start_direction
-    executed  = []
-    for move in move_string:
-        if move not in DIRECTIONS:
-            continue
-        if move == OPPOSITES[direction]:
-            break                   # stop — ignore everything after this
-        direction = move
-        executed.append(move)
-    return executed
-
-executed = simulate_move_string("DDADDWW", 'D')
-check("Moves before invalid reversal are executed (DD executed)",
-      executed == ['D', 'D'])
-check("Moves after invalid reversal are ignored (DWW ignored)",
-      'W' not in executed and executed[-1] == 'D')
+    def test_no_collision_inside_grid(self):
+        assert check_collision([[4, 6], [3, 6]]) == False
 
 
-# ── 7. Directional body rendering ─────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. Self Collision
+# ─────────────────────────────────────────────────────────────────────────────
 
-print("\n[ Directional Body Rendering ]")
+class TestSelfCollision:
+    def test_collision_when_head_overlaps_body(self):
+        snake = [[5, 5], [5, 6], [5, 7], [6, 7], [6, 6], [6, 5], [5, 5]]
+        assert check_collision(snake) is not None
 
-# Horizontal segment: neighbors are both left and right
-check("Horizontal segment renders as -",
-      get_segment_char([4, 5], [5, 5], [6, 5]) == '-')
-
-# Vertical segment: neighbors are both above and below
-check("Vertical segment renders as |",
-      get_segment_char([5, 4], [5, 5], [5, 6]) == '|')
-
-# Top-right curve: came from above, going right → \
-check("Top-right curve renders as \\",
-      get_segment_char([5, 4], [5, 5], [6, 5]) == '\\')
-
-# Bottom-left curve: came from below, going left → \
-check("Bottom-left curve renders as \\",
-      get_segment_char([5, 6], [5, 5], [4, 5]) == '\\')
-
-# Top-left curve: came from above, going left → /
-check("Top-left curve renders as /",
-      get_segment_char([5, 4], [5, 5], [4, 5]) == '/')
-
-# Bottom-right curve: came from right, going down → /
-check("Bottom-right curve renders as /",
-      get_segment_char([6, 5], [5, 5], [5, 6]) == '/')
+    def test_no_collision_when_body_is_clear(self):
+        assert check_collision([[5, 5], [4, 5], [3, 5]]) == False
 
 
-# ── Summary ────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. 180° Reversal Prevention
+# ─────────────────────────────────────────────────────────────────────────────
 
-print(f"\n{'─' * 40}")
-print(f"  Results: {passed} passed, {failed} failed")
-print(f"{'─' * 40}\n")
+class TestReversalPrevention:
+    def test_opposite_of_w_is_s(self):
+        assert OPPOSITES['W'] == 'S'
+
+    def test_opposite_of_s_is_w(self):
+        assert OPPOSITES['S'] == 'W'
+
+    def test_opposite_of_a_is_d(self):
+        assert OPPOSITES['A'] == 'D'
+
+    def test_opposite_of_d_is_a(self):
+        assert OPPOSITES['D'] == 'A'
+
+    def test_moving_left_while_facing_right_is_blocked(self):
+        assert 'A' == OPPOSITES['D']
+
+    def test_moving_up_while_facing_right_is_allowed(self):
+        assert 'W' != OPPOSITES['D']
+
+    def test_moves_before_reversal_are_executed(self):
+        assert self._simulate('DDADDWW', 'D') == ['D', 'D']
+
+    def test_moves_after_reversal_are_ignored(self):
+        executed = self._simulate('DDADDWW', 'D')
+        assert 'W' not in executed and executed[-1] == 'D'
+
+    def _simulate(self, move_string, start_direction):
+        direction = start_direction
+        executed = []
+        for move in move_string:
+            if move not in DIRECTIONS:
+                continue
+            if move == OPPOSITES[direction]:
+                break
+            direction = move
+            executed.append(move)
+        return executed
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. Directional Body Rendering
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestBodyRendering:
+    def test_horizontal_segment(self):
+        assert get_segment_char([4, 5], [5, 5], [6, 5]) == '-'
+
+    def test_vertical_segment(self):
+        assert get_segment_char([5, 4], [5, 5], [5, 6]) == '|'
+
+    def test_top_right_curve(self):
+        assert get_segment_char([5, 4], [5, 5], [6, 5]) == '\\'
+
+    def test_bottom_left_curve(self):
+        assert get_segment_char([5, 6], [5, 5], [4, 5]) == '\\'
+
+    def test_top_left_curve(self):
+        assert get_segment_char([5, 4], [5, 5], [4, 5]) == '/'
+
+    def test_bottom_right_curve(self):
+        assert get_segment_char([6, 5], [5, 5], [5, 6]) == '/'
