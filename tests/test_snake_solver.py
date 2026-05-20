@@ -527,3 +527,40 @@ class TestIntegration:
             game.step()
             assert game.food not in set(game.snake), \
                 "Food spawned on snake body"
+            
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 11. Seed Reproduction — same seed produces same food sequence
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSeedReproduction:
+    def test_same_seed_produces_same_food_sequence(self):
+        """Same seed always gives same food sequence."""
+        from snake_solver import SnakeSolverGame
+        game_a = SnakeSolverGame(seed="erika")
+        game_b = SnakeSolverGame(seed="erika")
+        assert game_a.food == game_b.food
+
+    def test_different_seeds_produce_different_food(self):
+        """Different seeds give different initial food positions."""
+        from snake_solver import SnakeSolverGame
+        game_a = SnakeSolverGame(seed="erika")
+        game_b = SnakeSolverGame(seed="lois")
+        assert game_a.food != game_b.food
+
+    def test_seed_reproduces_full_run(self):
+        """Same seed produces identical score and move count across two runs."""
+        from snake_solver import SnakeSolverGame
+        
+        def run_game(seed):
+            game = SnakeSolverGame(seed=seed)
+            for _ in range(500):
+                if game.state != "playing":
+                    break
+                game.step()
+            return game.score, game.move_count
+
+        score_a, moves_a = run_game("erika")
+        score_b, moves_b = run_game("erika")
+        assert score_a == score_b
+        assert moves_a == moves_b

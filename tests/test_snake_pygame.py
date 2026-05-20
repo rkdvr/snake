@@ -37,7 +37,7 @@ from snake_pygame import (
 @pytest.fixture
 def game():
     """Return a freshly initialised SnakeGame (headless)."""
-    return SnakeGame()
+    return SnakeGame(seed="test")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
