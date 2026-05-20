@@ -13,8 +13,8 @@ What makes Snake a compelling programming project is how naturally it maps to co
    cd snake
 
 2. Create and activate the environment:
-   conda env create -f environment.yaml
-   conda activate snake_environment
+   ```conda env create -f environment.yaml
+   conda activate snake_environment```
 
 3. Run the game:
    python src/snake_basic.py
