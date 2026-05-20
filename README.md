@@ -27,6 +27,13 @@ What makes Snake a compelling programming project is how naturally it maps to co
    python src/snake_advanced.py
    ```
 
+## Running Tests
+```
+PYTHONPATH=. python tests/test_snake_basic.py
+PYTHONPATH=. python tests/test_snake_intermediate.py
+PYTHONPATH=. python tests/test_snake_advanced.py
+```
+
 ## Project Structure
 ```
 snake/
