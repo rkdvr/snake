@@ -86,7 +86,7 @@ A test (`TestSolverReliability`) is included in the test suite to verify the suc
 
 1. Clone the repo:
    ```
-   git clone https://github.com/rkdvr/snake.git>
+   git clone https://github.com/rkdvr/snake.git
    cd snake
    ```
 
