@@ -111,15 +111,13 @@ class TestSolverNextMove:
         assert solver.strategy == "shortcut"
 
     def test_cycle_followed_when_no_shortcut_possible(self, solver):
-        """When no neighbouring cell qualifies as a shortcut, the solver
-        follows the Hamiltonian cycle and strategy is 'cycle'."""
-        # With an 80-cell snake, the window cycle_dist(head→tail) is small
-        # and most neighbours are outside it → greedy disabled by 80% threshold.
-        long_snake = [CYCLE[i] for i in range(80)]
+        """Above 50% fill the greedy shortcut is disabled; the solver falls
+        back to the cycle or tail-chase."""
+        long_snake = [CYCLE[i] for i in range(52)]   # >50% of 100 cells
         food  = CYCLE[85]
         move  = solver.next_move(long_snake, food)
         assert move in DIRS
-        assert solver.strategy == "cycle"
+        assert solver.strategy in ("cycle", "tail")
 
 
 # ── SnakeSolverGame — state ───────────────────────────────────────────────────
@@ -365,3 +363,69 @@ class TestSeedReproduction:
     def test_seed_stored_as_string(self, game):
         """Seed is always stored as a string for consistent HUD display."""
         assert isinstance(game.seed, str)
+
+
+# ── Solver reliability ────────────────────────────────────────────────────────
+
+class TestSolverReliability:
+    """
+    Statistical reliability test for the solver algorithm.
+
+    Runs the solver against 1000 random seeds and measures how often it
+    achieves 100% board fill.  The test passes if the success rate is at
+    or above 99%.
+
+    This test documents the expected reliability floor of the algorithm.
+    If it starts failing, it means a code change has degraded the solver —
+    either a regression in the shortcut logic, the tail-chase fallback, or
+    the safety checks.
+
+    Note: a small number of seeds (<1%) result in the snake being genuinely
+    surrounded on all four sides (free_neighbours=0) due to a chain of
+    greedy shortcuts.  This is a known limitation of single-step lookahead
+    and is considered acceptable.  The algorithm never makes an illegal move
+    (no wall or self-collisions); it only ever fails by returning None when
+    truly cornered.
+    """
+
+    SEEDS          = 1000
+    MIN_SUCCESS_PCT = 99.0
+
+    def test_success_rate_above_99_percent(self):
+        """Solver fills the board on at least 99% of 1000 random seeds."""
+        wins = 0
+
+        for seed in range(self.SEEDS):
+            random.seed(seed)
+            solver = Solver()
+            snake  = [CYCLE[2], CYCLE[1], CYCLE[0]]
+            food   = rand_cell(set(snake))
+
+            for _ in range(TOTAL_CELLS * 100):
+                move = solver.next_move(snake, food)
+                if move is None:
+                    break   # snake is trapped — count as failure
+
+                nx, ny = snake[0][0] + move[0], snake[0][1] + move[1]
+
+                # Illegal move — should never happen; count as failure
+                if not (0 <= nx < COLS and 0 <= ny < ROWS):
+                    break
+                if (nx, ny) in set(snake):
+                    break
+
+                snake.insert(0, (nx, ny))
+                if (nx, ny) == food:
+                    if len(snake) == TOTAL_CELLS:
+                        wins += 1
+                        break
+                    food = rand_cell(set(snake))
+                else:
+                    snake.pop()
+
+        success_pct = wins / self.SEEDS * 100
+        assert success_pct >= self.MIN_SUCCESS_PCT, (
+            f"Solver success rate {success_pct:.1f}% is below the "
+            f"{self.MIN_SUCCESS_PCT}% threshold across {self.SEEDS} seeds. "
+            f"Wins: {wins}/{self.SEEDS}."
+        )

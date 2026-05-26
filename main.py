@@ -72,7 +72,11 @@ def _run_pygame() -> None:
     from snake_pygame import SnakeGame
 
     game = SnakeGame()
-    seed = game.run()   # blocks until the window is closed; returns seed
+    seed, solve_now = game.run()   # returns (seed, True) if S was pressed
+
+    if solve_now:
+        _run_solver(seed=seed)
+        return
 
     print(f"\n  Game ended — seed: {seed}")
     try:

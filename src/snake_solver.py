@@ -38,25 +38,19 @@ import random
 import pygame
 
 from constants          import COLS, ROWS, CELL, TOTAL_CELLS, UP, DOWN, LEFT, RIGHT
-from solver_algorithm import Solver, rand_cell, CYCLE
+from solver_algorithm   import Solver, rand_cell, CYCLE
+from theme              import (
+    C_BG, C_HEAD, C_BODY_A, C_BODY_B, C_FOOD, C_FOOD_SPOT,
+    C_TEXT, C_MUTED, C_OVERLAY, C_GRID,
+    draw_snake, draw_food,
+)
 
 # ── Display constants ─────────────────────────────────────────────────────────
 WIDTH      = COLS * CELL          # e.g. 600 px at 10×10 with CELL=60
-HEIGHT     = ROWS * CELL + 50     # play area + 50 px bottom HUD
+HEIGHT     = ROWS * CELL + 80     # play area + 80 px bottom HUD (two rows + bar)
 HUD_Y      = ROWS * CELL          # y-coordinate where HUD begins
 DEFAULT_FPS = 20
 
-# ── Colours ───────────────────────────────────────────────────────────────────
-C_BG        = (13,  17,  23)
-C_GRID      = (28,  33,  40)
-C_HEAD      = (88, 166, 255)
-C_BODY_A    = (35, 134,  54)
-C_BODY_B    = (25,  97,  39)
-C_FOOD      = (248, 81,  73)
-C_FOOD_SPOT = (255, 123, 114)
-C_TEXT      = (230, 237, 243)
-C_MUTED     = (139, 148, 158)
-C_OVERLAY   = (13,  17,  23, 210)
 C_HUD_BG    = (22,  27,  34)
 C_SAFE      = (35, 134,  54,  60)   # tail-chase / hamiltonian path hint
 C_PATH      = (88, 166, 255,  80)   # greedy-food path hint
@@ -218,15 +212,15 @@ class SnakeSolverGame:
         if self.state == "over":
             self._draw_overlay(
                 "SOLVER STOPPED",
-                "trapped / collision  |  R to restart",
+                "R restart   ·   Q quit",
             )
         elif self.state == "won":
             self._draw_overlay(
                 "SUCCESS",
-                f"grid filled!  {self.move_count} moves  |  R to restart",
+                f"grid filled!   {self.move_count} moves   ·   R restart   ·   Q quit",
             )
         elif self.paused:
-            self._draw_overlay("PAUSED", "SPACE to resume")
+            self._draw_overlay("PAUSED", "SPACE resume   ·   R restart   ·   Q quit")
 
         pygame.display.flip()
 
@@ -252,119 +246,37 @@ class SnakeSolverGame:
         self.screen.blit(surf, (0, 0))
 
     def _draw_snake(self) -> None:
-        """
-        Draw the snake as a uniform rectangular tube.
+        draw_snake(self.screen, self.snake, self.dir)
 
-        Each segment and connector uses the same padding and no border
-        radius on body cells, so the snake has consistent straight
-        dimensions throughout — no wavy outline from mixed rounded cells
-        and flat connectors.  A single body colour avoids the strobing
-        effect of alternating shades at high speed.
-        """
-        PAD = max(4, CELL // 8)
-
-        # ── Connectors between consecutive segments (drawn first) ─────────────
-        for i in range(len(self.snake) - 1):
-            ax, ay = self.snake[i]
-            bx, by = self.snake[i + 1]
-
-            color_a = C_HEAD if i == 0 else C_BODY_A
-            color_b = C_HEAD if i + 1 == 0 else C_BODY_A
-
-            if by == ay and bx == ax + 1:       # b is right of a
-                pygame.draw.rect(self.screen, color_a,
-                    pygame.Rect(ax * CELL + CELL - PAD, ay * CELL + PAD,
-                                PAD, CELL - 2 * PAD))
-                pygame.draw.rect(self.screen, color_b,
-                    pygame.Rect(bx * CELL, by * CELL + PAD,
-                                PAD, CELL - 2 * PAD))
-
-            elif by == ay and bx == ax - 1:     # b is left of a
-                pygame.draw.rect(self.screen, color_a,
-                    pygame.Rect(ax * CELL, ay * CELL + PAD,
-                                PAD, CELL - 2 * PAD))
-                pygame.draw.rect(self.screen, color_b,
-                    pygame.Rect(bx * CELL + CELL - PAD, by * CELL + PAD,
-                                PAD, CELL - 2 * PAD))
-
-            elif bx == ax and by == ay + 1:     # b is below a
-                pygame.draw.rect(self.screen, color_a,
-                    pygame.Rect(ax * CELL + PAD, ay * CELL + CELL - PAD,
-                                CELL - 2 * PAD, PAD))
-                pygame.draw.rect(self.screen, color_b,
-                    pygame.Rect(bx * CELL + PAD, by * CELL,
-                                CELL - 2 * PAD, PAD))
-
-            elif bx == ax and by == ay - 1:     # b is above a
-                pygame.draw.rect(self.screen, color_a,
-                    pygame.Rect(ax * CELL + PAD, ay * CELL,
-                                CELL - 2 * PAD, PAD))
-                pygame.draw.rect(self.screen, color_b,
-                    pygame.Rect(bx * CELL + PAD, by * CELL + CELL - PAD,
-                                CELL - 2 * PAD, PAD))
-
-        # ── Cell rects on top — no border_radius on body ──────────────────────
-        for i, (cx, cy) in enumerate(self.snake):
-            if i == 0:
-                color  = C_HEAD
-                radius = max(4, CELL // 10)   # head keeps slight rounding
-            else:
-                color  = C_BODY_A
-                radius = 0                    # body is a plain rectangle
-
-            pygame.draw.rect(
-                self.screen, color,
-                pygame.Rect(cx * CELL + PAD, cy * CELL + PAD,
-                            CELL - 2 * PAD, CELL - 2 * PAD),
-                border_radius=radius,
-            )
-
-        # ── Eyes on the head ─────────────────────────────────────────────────
-        hx, hy = self.snake[0]
-        cx = hx * CELL + CELL // 2
-        cy = hy * CELL + CELL // 2
-        angle = math.atan2(self.dir[1], self.dir[0])
-        perp  = angle + math.pi / 2
-        for sign in (+1, -1):
-            ex = int(cx + math.cos(angle) * 5 + math.cos(perp) * sign * 4)
-            ey = int(cy + math.sin(angle) * 5 + math.sin(perp) * sign * 4)
-            pygame.draw.circle(self.screen, (255, 255, 255), (ex, ey), 3)
-            pygame.draw.circle(
-                self.screen, C_BG,
-                (int(ex + math.cos(angle)), int(ey + math.sin(angle))), 1,
-            )
 
     def _draw_food(self) -> None:
-        fx, fy = self.food
-        cx = fx * CELL + CELL // 2
-        cy = fy * CELL + CELL // 2
-        pygame.draw.circle(self.screen, C_FOOD,      (cx, cy), CELL // 2 - 3)
-        pygame.draw.circle(self.screen, C_FOOD_SPOT, (cx - 2, cy - 2), 3)
+        draw_food(self.screen, self.food)
 
     def _draw_hud(self) -> None:
         pygame.draw.rect(self.screen, C_HUD_BG, (0, HUD_Y, WIDTH, HEIGHT - HUD_Y))
 
         pct  = len(self.snake) / TOTAL_CELLS * 100
-        info = (
-            f"score {self.score}  |  moves {self.move_count}  |  "
-            f"len {len(self.snake)}/{TOTAL_CELLS} ({pct:.0f}%)  |  "
-            f"fps {self.fps}  |  strategy: {self.strategy}"
+        # Top row — game stats
+        stats = self.font_sm.render(
+            f"score {self.score}   ·   moves {self.move_count}"
+            f"   ·   fill {pct:.0f}%   ·   seed {self.seed}",
+            True, C_MUTED,
         )
-        self.screen.blit(
-            self.font_sm.render(info, True, C_MUTED),
-            (8, HUD_Y + 8),
+        # Bottom row — commands
+        cmds = self.font_sm.render(
+            "SPACE  pause     R  restart     Q  quit     +/-  speed",
+            True, C_MUTED,
         )
-        self.screen.blit(
-            self.font_sm.render(f"seed {self.seed}", True, C_GRID),
-            (WIDTH - self.font_sm.size(f"seed {self.seed}")[0] - 8, HUD_Y + 8),
-        )
+        self.screen.blit(stats, (8, HUD_Y + 8))
+        self.screen.blit(cmds,  (8, HUD_Y + 36))
 
+        # Progress bar
         bar_w = int((WIDTH - 16) * len(self.snake) / TOTAL_CELLS)
         pygame.draw.rect(
-            self.screen, C_GRID,   (8, HUD_Y + 32, WIDTH - 16, 6), border_radius=3,
+            self.screen, C_GRID,   (8, HUD_Y + 62, WIDTH - 16, 6), border_radius=3,
         )
         pygame.draw.rect(
-            self.screen, C_BODY_A, (8, HUD_Y + 32, bar_w,      6), border_radius=3,
+            self.screen, C_BODY_A, (8, HUD_Y + 62, bar_w,      6), border_radius=3,
         )
 
     def _draw_overlay(self, title: str, sub: str) -> None:
@@ -395,7 +307,11 @@ class SnakeSolverGame:
                     return self.seed
 
                 if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_SPACE:
+                    if event.key == pygame.K_q:
+                        self._print_run_summary()
+                        pygame.quit()
+                        import sys; sys.exit()
+                    elif event.key == pygame.K_SPACE:
                         self.paused = not self.paused
                     elif event.key == pygame.K_r:
                         self.reset(self.seed)
