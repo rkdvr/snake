@@ -1,9 +1,12 @@
 import os
 import random
 
+from constants import COLS, ROWS
+
 # ── Constants ──────────────────────────────────────────────────────────────────
-GRID_WIDTH  = 9
-GRID_HEIGHT = 12
+# Grid dimensions come from constants.py so all three games share the same grid.
+GRID_WIDTH  = COLS
+GRID_HEIGHT = ROWS
 
 EMPTY = '.'
 HEAD  = 'M'
@@ -190,6 +193,14 @@ def main():
             print(f'  ╚══════════════════════════════╝')
             print(f'  Seed used: {seed}')
             return
+
+    if game_over == "won":
+        print(f'\n  ╔══════════════════════════════╗')
+        print(f'  ║   S U C C E S S              ║')
+        print(f'  ║   Grid filled! Score: {len(snake) - 1:<5}  ║')
+        print(f'  ╚══════════════════════════════╝')
+        print(f'  Seed used: {seed}')
+        return
 
     print(f'\n  Game Over!  Final score: {len(snake) - 1}')
     print(f'  Seed used: {seed}')
