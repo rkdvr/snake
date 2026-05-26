@@ -38,6 +38,25 @@ In plain terms: **the snake has a guaranteed plan to win, looks for faster oppor
 
 ---
 
+## Why These Strategies
+
+The goal was 100% grid fill — a snake that never dies and always completes the board. We evaluated several approaches before landing on the current design.
+
+**Why not purely greedy (always chase food directly)?**
+A greedy solver is fast at collecting food early on, but it has no concept of the overall board state. As the snake grows longer, greedy paths increasingly partition the free space into disconnected regions, eventually boxing the snake into a corner with no escape. It works well at low fill and fails reliably at high fill.
+
+**Why a Hamiltonian cycle as the foundation?**
+A Hamiltonian cycle visits every cell exactly once before returning to the start. A snake that follows it perfectly will always fill the board — mathematically guaranteed, no exceptions. It also eliminates the self-trapping problem entirely: because the snake's body always occupies consecutive positions on the cycle, the next step is always outside the body. No runtime safety checks needed.
+
+**Why add greedy shortcuts on top?**
+Pure cycle following works but is slow — the snake visits every cell in a fixed order regardless of where food spawns. Adding opportunistic shortcuts lets the snake collect food sooner when it is safe to do so, reducing total moves without sacrificing the safety guarantee. The safety check is simple: a shortcut is only taken if the detour keeps the snake within the safe window between its head and its own tail on the cycle.
+
+**Why disable shortcuts at 80% fill?**
+At high fill, the snake is long and the safe window between head and tail is small. The risk of a shortcut disrupting the remaining path outweighs the benefit of collecting food a few steps sooner. Switching to pure cycle following at this point ensures a clean finish.
+
+**Why not a more optimal algorithm?**
+More optimal approaches — such as deep lookahead, A* on cycle positions, or reinforcement learning — exist and would reduce total move count. We chose this design because it is explainable, deterministic, and achieves the primary goal reliably on any grid size. Correctness and clarity were prioritised over speed optimisation.
+
 ## Requirements
 
 - Python 3.13
