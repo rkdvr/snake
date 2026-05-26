@@ -55,7 +55,7 @@ Pure cycle following works but is slow — the snake visits every cell in a fixe
 At high fill, the snake is long and the safe window between head and tail is small. The risk of a shortcut disrupting the remaining path outweighs the benefit of collecting food a few steps sooner. Switching to pure cycle following at this point ensures a clean finish.
 
 **Why not a more optimal algorithm?**
-More optimal approaches — such as deep lookahead, A* on cycle positions, or reinforcement learning — exist and would reduce total move count. We chose this design because it is explainable, deterministic, and achieves the primary goal reliably on any grid size. Correctness and clarity were prioritised over speed optimisation.
+More optimal approaches — such as deep lookahead, A** on cycle positions, or reinforcement learning — exist and would reduce total move count. However, these methods require significantly more computing power per step: a deeper lookahead branches into millions of possible futures, and reinforcement learning requires training across millions of games before the agent learns reliable behaviour. We chose this design because it is explainable, deterministic, and achieves the primary goal reliably on any grid size without heavy computation. Correctness and clarity were prioritised over speed optimisation.
 
 ## Requirements
 
