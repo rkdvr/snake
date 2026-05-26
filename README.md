@@ -69,7 +69,7 @@ More optimal approaches — such as deep lookahead, A* on cycle positions, or re
 
 ## Disclaimer
 
-The solver achieves **100% board fill on approximately 99% of random seeds**, verified across 1,000 test runs. In rare cases (roughly 1 in 200 games), a sequence of greedy shortcuts can leave the snake with no safe move available — all four adjacent cells are occupied by its own body. When this happens, the game displays a "SOLVER STOPPED" screen and can be restarted.
+The solver achieves **100% board fill on approximately 99.5% of random seeds**, verified across 2,000 test runs. In rare cases (roughly 1 in 200 games), a sequence of greedy shortcuts can leave the snake with no safe move available — all four adjacent cells are occupied by its own body. When this happens, the game displays a "SOLVER STOPPED" screen and can be restarted.
 
 This is a known limitation of the single-step safety check used by the shortcut logic. The algorithm never makes an illegal move (no wall collisions, no self-collisions) — it simply stops when it has no legal option left. A deeper lookahead would reduce this further but at significantly higher computational cost.
 
