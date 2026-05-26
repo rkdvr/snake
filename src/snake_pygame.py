@@ -247,12 +247,74 @@ class SnakeGame:
             pygame.draw.line(self.screen, C_GRID, (0, y), (WIDTH, y))
 
     def _draw_snake(self) -> None:
-        for i, (cx, cy) in enumerate(self.snake):
-            rect   = pygame.Rect(cx * CELL + 1, cy * CELL + 1, CELL - 2, CELL - 2)
-            color  = C_HEAD if i == 0 else (C_BODY_A if i % 2 == 0 else C_BODY_B)
-            radius = 7 if i == 0 else 4
-            draw_rounded_rect(self.screen, color, rect, radius)
+        """
+        Draw the snake as a uniform rectangular tube.
 
+        Each segment and connector uses the same padding and no border
+        radius on body cells, so the snake has consistent straight
+        dimensions throughout — no wavy outline from mixed rounded cells
+        and flat connectors.  A single body colour avoids the strobing
+        effect of alternating shades at high speed.
+        """
+        PAD = max(4, CELL // 8)
+
+        # ── Connectors between consecutive segments (drawn first) ─────────────
+        for i in range(len(self.snake) - 1):
+            ax, ay = self.snake[i]
+            bx, by = self.snake[i + 1]
+
+            color_a = C_HEAD if i == 0 else C_BODY_A
+            color_b = C_HEAD if i + 1 == 0 else C_BODY_A
+
+            if by == ay and bx == ax + 1:       # b is right of a
+                pygame.draw.rect(self.screen, color_a,
+                    pygame.Rect(ax * CELL + CELL - PAD, ay * CELL + PAD,
+                                PAD, CELL - 2 * PAD))
+                pygame.draw.rect(self.screen, color_b,
+                    pygame.Rect(bx * CELL, by * CELL + PAD,
+                                PAD, CELL - 2 * PAD))
+
+            elif by == ay and bx == ax - 1:     # b is left of a
+                pygame.draw.rect(self.screen, color_a,
+                    pygame.Rect(ax * CELL, ay * CELL + PAD,
+                                PAD, CELL - 2 * PAD))
+                pygame.draw.rect(self.screen, color_b,
+                    pygame.Rect(bx * CELL + CELL - PAD, by * CELL + PAD,
+                                PAD, CELL - 2 * PAD))
+
+            elif bx == ax and by == ay + 1:     # b is below a
+                pygame.draw.rect(self.screen, color_a,
+                    pygame.Rect(ax * CELL + PAD, ay * CELL + CELL - PAD,
+                                CELL - 2 * PAD, PAD))
+                pygame.draw.rect(self.screen, color_b,
+                    pygame.Rect(bx * CELL + PAD, by * CELL,
+                                CELL - 2 * PAD, PAD))
+
+            elif bx == ax and by == ay - 1:     # b is above a
+                pygame.draw.rect(self.screen, color_a,
+                    pygame.Rect(ax * CELL + PAD, ay * CELL,
+                                CELL - 2 * PAD, PAD))
+                pygame.draw.rect(self.screen, color_b,
+                    pygame.Rect(bx * CELL + PAD, by * CELL + CELL - PAD,
+                                CELL - 2 * PAD, PAD))
+
+        # ── Cell rects on top — no border_radius on body ──────────────────────
+        for i, (cx, cy) in enumerate(self.snake):
+            if i == 0:
+                color  = C_HEAD
+                radius = max(4, CELL // 10)   # head keeps slight rounding
+            else:
+                color  = C_BODY_A
+                radius = 0                    # body is a plain rectangle
+
+            pygame.draw.rect(
+                self.screen, color,
+                pygame.Rect(cx * CELL + PAD, cy * CELL + PAD,
+                            CELL - 2 * PAD, CELL - 2 * PAD),
+                border_radius=radius,
+            )
+
+        # ── Eyes on the head ─────────────────────────────────────────────────
         hx, hy = self.snake[0]
         cx = hx * CELL + CELL // 2
         cy = hy * CELL + CELL // 2
