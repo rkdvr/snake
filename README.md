@@ -26,12 +26,15 @@ After closing the Pygame game, the main menu offers to run the Solver on the sam
 The solver uses three strategies that work together:
 
 **1. The Master Route (Hamiltonian Cycle)**
+
 Before the game starts, the solver maps out a path that visits every cell on the grid exactly once and loops back to the beginning. No matter what happens, the snake always has this route as its guaranteed plan. As long as it follows this route, it will never trap itself and will always fill the board completely.
 
 **2. Opportunistic Shortcuts**
+
 While following the master route, the solver constantly looks for chances to grab food sooner. If a shortcut to the food is available and safe — meaning the snake won't cut off its own path back — it takes it. If not, it stays on the master route and waits for the food to come around naturally. Once the board is near full, shortcuts are disabled and the snake follows the master route to the finish.
 
 **3. Tail Chase (emergent)**
+
 Because the master route keeps the snake behind its own tail at all times, the snake naturally follows its tail around the board. This is not a separate decision — it is what following the route looks like in practice, most visible after a shortcut when the snake curves back to realign with its tail.
 
 In plain terms: **the snake has a guaranteed plan to win, looks for faster opportunities along the way, and by design is always chasing its own tail to stay safe.**
@@ -43,18 +46,23 @@ In plain terms: **the snake has a guaranteed plan to win, looks for faster oppor
 The goal was 100% grid fill — a snake that never dies and always completes the board. We evaluated several approaches before landing on the current design.
 
 **Why not purely greedy (always chase food directly)?**
+
 A greedy solver is fast at collecting food early on, but it has no concept of the overall board state. As the snake grows longer, greedy paths increasingly partition the free space into disconnected regions, eventually boxing the snake into a corner with no escape. It works well at low fill and fails reliably at high fill.
 
 **Why a Hamiltonian cycle as the foundation?**
+
 A Hamiltonian cycle visits every cell exactly once before returning to the start. A snake that follows it perfectly will always fill the board — mathematically guaranteed, no exceptions. It also eliminates the self-trapping problem entirely: because the snake's body always occupies consecutive positions on the cycle, the next step is always outside the body. No runtime safety checks needed.
 
 **Why add greedy shortcuts on top?**
+
 Pure cycle following works but is slow — the snake visits every cell in a fixed order regardless of where food spawns. Adding opportunistic shortcuts lets the snake collect food sooner when it is safe to do so, reducing total moves without sacrificing the safety guarantee. The safety check is simple: a shortcut is only taken if the detour keeps the snake within the safe window between its head and its own tail on the cycle.
 
 **Why disable shortcuts at 80% fill?**
+
 At high fill, the snake is long and the safe window between head and tail is small. The risk of a shortcut disrupting the remaining path outweighs the benefit of collecting food a few steps sooner. Switching to pure cycle following at this point ensures a clean finish.
 
 **Why not a more optimal algorithm?**
+
 More optimal approaches — such as deep lookahead, A** on cycle positions, or reinforcement learning — exist and would reduce total move count. However, these methods require significantly more computing power per step: a deeper lookahead branches into millions of possible futures, and reinforcement learning requires training across millions of games before the agent learns reliable behaviour. We chose this design because it is explainable, deterministic, and achieves the primary goal reliably on any grid size without heavy computation. Correctness and clarity were prioritised over speed optimisation.
 
 ## Requirements
