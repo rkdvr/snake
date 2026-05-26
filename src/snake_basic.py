@@ -126,7 +126,11 @@ def process_moves(move_string, snake, food, direction):
 
         if new_snake[0] == food:
             snake = new_snake
-            food  = spawn_food(snake)
+            if len(snake) == GRID_WIDTH * GRID_HEIGHT:
+                clear_screen()
+                draw_board(snake, food)
+                return snake, food, direction, "won"
+            food = spawn_food(snake)
         else:
             snake = new_snake[:-1]
 
@@ -165,12 +169,27 @@ def main():
     if autoplay:
         print("\n  Autoplaying...\n")
         snake, food, direction, game_over = process_moves(autoplay, snake, food, direction)
+        if game_over == "won":
+            print(f'\n  ╔══════════════════════════════╗')
+            print(f'  ║   S U C C E S S              ║')
+            print(f'  ║   Grid filled! Score: {len(snake) - 1:<5}  ║')
+            print(f'  ╚══════════════════════════════╝')
+            print(f'  Seed used: {seed}')
+            return
 
     while not game_over:
         moves = input('\nYour move(s): ').upper().strip()
         if not moves:
             continue
         snake, food, direction, game_over = process_moves(moves, snake, food, direction)
+
+        if game_over == "won":
+            print(f'\n  ╔══════════════════════════════╗')
+            print(f'  ║   S U C C E S S              ║')
+            print(f'  ║   Grid filled! Score: {len(snake) - 1:<5}  ║')
+            print(f'  ╚══════════════════════════════╝')
+            print(f'  Seed used: {seed}')
+            return
 
     print(f'\n  Game Over!  Final score: {len(snake) - 1}')
     print(f'  Seed used: {seed}')

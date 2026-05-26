@@ -11,7 +11,6 @@ variables so tests run headlessly (no window required).
 
 import os
 import sys
-import types
 import pytest
 
 # ── Headless pygame stub ──────────────────────────────────────────────────────
@@ -20,14 +19,9 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 # ── Import the module under test ──────────────────────────────────────────────
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 import snake_pygame as sg
-from snake_pygame import (
-    UP, DOWN, LEFT, RIGHT, OPPOSITES,
-    COLS, ROWS, BASE_SPEED,
-    rand_cell, SnakeGame,
-    _make_state, _reset_state, _simulate_eat,
-)
+from snake_pygame import SnakeGame, BASE_SPEED, MAX_SPEED
+from constants    import UP, DOWN, LEFT, RIGHT, OPPOSITES, COLS, ROWS
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -57,32 +51,7 @@ class TestDirections:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2. rand_cell
-# ─────────────────────────────────────────────────────────────────────────────
-
-class TestRandCell:
-    def test_not_in_exclude(self):
-        exclude = {(5, 5), (6, 6), (7, 7)}
-        for _ in range(100):
-            c = rand_cell(exclude)
-            assert c not in exclude
-
-    def test_within_bounds(self):
-        for _ in range(100):
-            x, y = rand_cell(set())
-            assert 0 <= x < COLS
-            assert 0 <= y < ROWS
-
-    def test_full_board_minus_one(self):
-        """rand_cell should still find the single free cell."""
-        all_cells = {(x, y) for x in range(COLS) for y in range(ROWS)}
-        free = (3, 3)
-        exclude = all_cells - {free}
-        assert rand_cell(exclude) == free
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 3. reset_game / initial state
+# 2. reset_game / initial state
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestReset:
@@ -114,7 +83,7 @@ class TestReset:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4. Input handling
+# 3. Input handling
 # ─────────────────────────────────────────────────────────────────────────────
 
 import pygame
@@ -155,13 +124,13 @@ class TestInputHandling:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 5. Movement
+# 4. Movement
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestMovement:
     def test_snake_moves_forward(self, game):
         game.state    = "playing"
-        game.snake    = [(10, 10), (9, 10), (8, 10)]
+        game.snake    = [(3, 3), (2, 3), (1, 3)]
         game.dir      = RIGHT
         game.next_dir = RIGHT
         # Put food somewhere irrelevant
@@ -173,7 +142,7 @@ class TestMovement:
 
     def test_tail_removed_when_no_food(self, game):
         game.state    = "playing"
-        game.snake    = [(10, 10), (9, 10), (8, 10)]
+        game.snake    = [(3, 3), (2, 3), (1, 3)]
         game.dir      = RIGHT
         game.next_dir = RIGHT
         game.food     = (0, 0)
@@ -182,45 +151,45 @@ class TestMovement:
 
     def test_snake_grows_on_food(self, game):
         game.state    = "playing"
-        game.snake    = [(10, 10), (9, 10), (8, 10)]
+        game.snake    = [(3, 3), (2, 3), (1, 3)]
         game.dir      = RIGHT
         game.next_dir = RIGHT
-        game.food     = (11, 10)  # directly ahead
+        game.food     = (4, 3)  # directly ahead
         game.move()
         assert len(game.snake) == 4
 
     def test_score_increments_on_food(self, game):
         game.state    = "playing"
-        game.snake    = [(10, 10), (9, 10), (8, 10)]
+        game.snake    = [(3, 3), (2, 3), (1, 3)]
         game.dir      = RIGHT
         game.next_dir = RIGHT
-        game.food     = (11, 10)
+        game.food     = (4, 3)
         game.move()
         assert game.score == 1
 
     def test_high_score_updated_on_food(self, game):
         game.high     = 0
         game.state    = "playing"
-        game.snake    = [(10, 10), (9, 10), (8, 10)]
+        game.snake    = [(3, 3), (2, 3), (1, 3)]
         game.dir      = RIGHT
         game.next_dir = RIGHT
-        game.food     = (11, 10)
+        game.food     = (4, 3)
         game.move()
         assert game.high == 1
 
     def test_new_food_placed_after_eating(self, game):
         game.state    = "playing"
-        game.snake    = [(10, 10), (9, 10), (8, 10)]
+        game.snake    = [(3, 3), (2, 3), (1, 3)]
         game.dir      = RIGHT
         game.next_dir = RIGHT
-        game.food     = (11, 10)
+        game.food     = (4, 3)   # directly ahead
         game.move()
-        assert game.food != (11, 10)  # old food replaced
+        assert game.food != (4, 3)   # old food replaced
         assert game.food not in game.snake
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. Collision detection
+# 5. Collision detection
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestCollisions:
@@ -229,7 +198,7 @@ class TestCollisions:
 
     def test_wall_collision_top(self, game):
         self._set_playing(game)
-        game.snake    = [(5, 0), (5, 1), (5, 2)]
+        game.snake    = [(3, 0), (3, 1), (3, 2)]
         game.dir      = UP
         game.next_dir = UP
         game.move()
@@ -237,7 +206,7 @@ class TestCollisions:
 
     def test_wall_collision_bottom(self, game):
         self._set_playing(game)
-        game.snake    = [(5, ROWS-1), (5, ROWS-2), (5, ROWS-3)]
+        game.snake    = [(3, 9), (3, 8), (3, 7)]
         game.dir      = DOWN
         game.next_dir = DOWN
         game.move()
@@ -245,7 +214,7 @@ class TestCollisions:
 
     def test_wall_collision_left(self, game):
         self._set_playing(game)
-        game.snake    = [(0, 5), (1, 5), (2, 5)]
+        game.snake    = [(0, 3), (1, 3), (2, 3)]
         game.dir      = LEFT
         game.next_dir = LEFT
         game.move()
@@ -253,7 +222,7 @@ class TestCollisions:
 
     def test_wall_collision_right(self, game):
         self._set_playing(game)
-        game.snake    = [(COLS-1, 5), (COLS-2, 5), (COLS-3, 5)]
+        game.snake    = [(9, 3), (8, 3), (7, 3)]
         game.dir      = RIGHT
         game.next_dir = RIGHT
         game.move()
@@ -263,10 +232,10 @@ class TestCollisions:
         self._set_playing(game)
         # Snake curled so next move hits its own body
         game.snake = [
-            (5, 5), (5, 6), (6, 6), (6, 5), (6, 4),
-            (5, 4), (4, 4), (4, 5), (4, 6),
+            (2, 2), (2, 3), (3, 3), (3, 2), (3, 1),
+            (2, 1), (1, 1), (1, 2), (1, 3),
         ]
-        game.dir      = UP   # head at (5,5) moving UP → (5,4) which is in body
+        game.dir      = UP   # head at (2,2) moving UP → (2,1) which is in body
         game.next_dir = UP
         game.food     = (0, 0)
         game.move()
@@ -274,7 +243,7 @@ class TestCollisions:
 
     def test_no_false_collision(self, game):
         self._set_playing(game)
-        game.snake    = [(10, 10), (9, 10), (8, 10)]
+        game.snake    = [(3, 3), (2, 3), (1, 3)]
         game.dir      = RIGHT
         game.next_dir = RIGHT
         game.food     = (0, 0)
@@ -283,7 +252,7 @@ class TestCollisions:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 7. Speed scaling
+# 6. Speed scaling
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestSpeed:
@@ -295,48 +264,15 @@ class TestSpeed:
         game.score = 3
         assert game.speed > BASE_SPEED
 
-    def test_speed_capped_at_14(self, game):
+    def test_speed_capped_at_max_speed(self, game):
+        """Speed never exceeds MAX_SPEED regardless of score."""
         game.score = 9999
-        assert game.speed == 14
+        assert game.speed == MAX_SPEED
 
     def test_speed_increments_every_3_points(self, game):
+        """Speed increases by 1 for every 3 points scored."""
         game.score = 0
         s0 = game.speed
         game.score = 3
         s3 = game.speed
         assert s3 == s0 + 1
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 8. Built-in test helpers (_make_state / _reset_state / _simulate_eat)
-# ─────────────────────────────────────────────────────────────────────────────
-
-class TestStateHelpers:
-    def test_make_state_defaults(self):
-        s = _make_state()
-        assert s["score"] == 0
-        assert len(s["snake"]) == 3
-        assert s["dir"] == RIGHT
-
-    def test_reset_state_clears_score(self):
-        s = _make_state()
-        s["score"] = 50
-        _reset_state(s)
-        assert s["score"] == 0
-
-    def test_reset_state_snake_length(self):
-        s = _make_state()
-        s["snake"].extend([(7,10),(6,10)])
-        _reset_state(s)
-        assert len(s["snake"]) == 3
-
-    def test_simulate_eat_grows_snake(self):
-        s = _make_state()
-        length_before = len(s["snake"])
-        _simulate_eat(s)
-        assert len(s["snake"]) == length_before + 1
-
-    def test_simulate_eat_increments_score(self):
-        s = _make_state()
-        _simulate_eat(s)
-        assert s["score"] == 1

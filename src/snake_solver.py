@@ -1,35 +1,52 @@
 """
-Snake Solver — BFS pathfinding + tail-chase survival fallback
-Requirements: pip install pygame
-Run:          python src/snake_solver.py
+snake_solver.py — AI solver game runner with pygame visualisation.
 
-Controls:
-  SPACE   pause / resume
-  R       restart with same seed
-  +/-     speed up / slow down
+The solver logic lives in solver_algorithm.py.  This file is responsible
+only for the game loop, rendering, and HUD — it imports Solver and uses it,
+but contains no decision-making code of its own.
+
+Controls
+--------
+    SPACE       pause / resume
+    R           restart with same seed
+    + / =       increase speed
+    -           decrease speed
+
+Run directly
+------------
+    python src/snake_solver.py
+
+Run via main menu
+-----------------
+    python main.py  →  choose option 3
+
+Seed behaviour
+--------------
+Same as snake_pygame.py: enter a string for a reproducible run, or press
+Enter to generate a unique timestamp seed shown in the HUD.
+
+When run via main.py the seed can be passed in directly (e.g. to solve the
+same board that was just played in snake_pygame).  run() returns the seed
+on exit so main.py can display a summary.
 """
 
-import pygame
 import sys
+import math
+import time
 import random
-import collections
 
-# ── Constants ─────────────────────────────────────────────────────────────────
-COLS, ROWS  = 20, 20
-CELL        = 30
-WIDTH       = COLS * CELL
-HEIGHT      = ROWS * CELL + 50
-HUD_Y       = ROWS * CELL
+import pygame
+
+from constants          import COLS, ROWS, CELL, TOTAL_CELLS, UP, DOWN, LEFT, RIGHT
+from solver_algorithm import Solver, rand_cell, CYCLE
+
+# ── Display constants ─────────────────────────────────────────────────────────
+WIDTH      = COLS * CELL          # e.g. 600 px at 10×10 with CELL=60
+HEIGHT     = ROWS * CELL + 50     # play area + 50 px bottom HUD
+HUD_Y      = ROWS * CELL          # y-coordinate where HUD begins
 DEFAULT_FPS = 20
 
-UP    = ( 0, -1)
-DOWN  = ( 0,  1)
-LEFT  = (-1,  0)
-RIGHT = ( 1,  0)
-DIRS  = [UP, DOWN, LEFT, RIGHT]
-OPPOSITES = {UP: DOWN, DOWN: UP, LEFT: RIGHT, RIGHT: LEFT}
-
-# Colours
+# ── Colours ───────────────────────────────────────────────────────────────────
 C_BG        = (13,  17,  23)
 C_GRID      = (28,  33,  40)
 C_HEAD      = (88, 166, 255)
@@ -41,176 +58,104 @@ C_TEXT      = (230, 237, 243)
 C_MUTED     = (139, 148, 158)
 C_OVERLAY   = (13,  17,  23, 210)
 C_HUD_BG    = (22,  27,  34)
-C_SAFE      = (35, 134,  54, 60)
-C_PATH      = (88, 166, 255, 80)
+C_SAFE      = (35, 134,  54,  60)   # tail-chase / hamiltonian path hint
+C_PATH      = (88, 166, 255,  80)   # greedy-food path hint
 
 
-# ── BFS helpers ───────────────────────────────────────────────────────────────
-def rand_cell(exclude):
-    while True:
-        c = (random.randint(0, COLS-1), random.randint(0, ROWS-1))
-        if c not in exclude:
-            return c
+# ── Game runner ───────────────────────────────────────────────────────────────
 
-def bfs(head, target, snake_set, snake_deque):
-    queue   = collections.deque()
-    queue.append((head, []))
-    visited = {head}
-
-    while queue:
-        pos, path = queue.popleft()
-        for d in DIRS:
-            nxt = (pos[0]+d[0], pos[1]+d[1])
-            if nxt == target:
-                return path + [d]
-            if (nxt not in visited and
-                    nxt not in snake_set and
-                    0 <= nxt[0] < COLS and
-                    0 <= nxt[1] < ROWS):
-                visited.add(nxt)
-                queue.append((nxt, path + [d]))
-    return None
-
-
-def flood_fill_size(start, snake_set):
-    visited = {start}
-    queue   = collections.deque([start])
-    while queue:
-        pos = queue.popleft()
-        for d in DIRS:
-            nxt = (pos[0]+d[0], pos[1]+d[1])
-            if (nxt not in visited and
-                    nxt not in snake_set and
-                    0 <= nxt[0] < COLS and
-                    0 <= nxt[1] < ROWS):
-                visited.add(nxt)
-                queue.append(nxt)
-    return len(visited)
-
-
-def safe_moves(head, snake_set):
-    result = []
-    for d in DIRS:
-        nxt = (head[0]+d[0], head[1]+d[1])
-        if (nxt not in snake_set and
-                0 <= nxt[0] < COLS and 0 <= nxt[1] < ROWS):
-            result.append((d, nxt))
-    return result
-
-
-# ── Solver ────────────────────────────────────────────────────────────────────
-class Solver:
-    def next_move(self, snake, food):
-        head      = snake[0]
-        snake_set = set(snake[:-1])
-
-        path_to_food = bfs(head, food, snake_set, snake)
-        if path_to_food:
-            sim_snake = list(snake)
-            valid     = True
-            for d in path_to_food:
-                new_head = (sim_snake[0][0]+d[0], sim_snake[0][1]+d[1])
-                eating   = (new_head == food)
-                sim_check = set(sim_snake[:-1]) if not eating else set(sim_snake)
-                if new_head in sim_check:
-                    valid = False
-                    break
-                sim_snake.insert(0, new_head)
-                if not eating:
-                    sim_snake.pop()
-            if valid:
-                sim_set = set(sim_snake[:-1])
-                tail    = sim_snake[-1]
-                if bfs(sim_snake[0], tail, sim_set, sim_snake) is not None:
-                    return path_to_food[0]
-
-        tail      = snake[-1]
-        path_tail = bfs(head, tail, snake_set, snake)
-        if path_tail:
-            return path_tail[0]
-
-        moves = safe_moves(head, snake_set)
-        if moves:
-            best_d, _ = max(moves,
-                            key=lambda dm: flood_fill_size(dm[1], snake_set))
-            return best_d
-
-        return None
-
-
-# ── Game + visualiser ─────────────────────────────────────────────────────────
 class SnakeSolverGame:
-    def __init__(self, seed=None):
+    """
+    Pygame game loop for the AI solver.
+
+    The Solver instance (solver_algorithm.py) is called once per frame.
+    This class only applies the move and updates visual state.
+
+    Parameters
+    ----------
+    seed : str or int or None
+        Seed for the RNG.  Pass a value to skip the interactive prompt
+        (used by main.py when handing over a seed from snake_pygame).
+    """
+
+    def __init__(self, seed: str | int | None = None) -> None:
         pygame.init()
         self.screen  = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("Snake Solver")
         self.clock   = pygame.time.Clock()
         self.font_lg = pygame.font.SysFont("Courier New", 22, bold=True)
         self.font_sm = pygame.font.SysFont("Courier New", 14)
-        self.solver  = Solver()
+
         self.fps     = DEFAULT_FPS
         self.paused  = False
-        self.runs    = []
+        self.runs: list[dict] = []
 
         if seed is None:
-            seed_input = input("Enter seed to reproduce (press Enter for default): ").strip()
-            seed = seed_input if seed_input else "default"
+            raw  = input("Enter seed (press Enter for random): ").strip()
+            seed = raw if raw else str(int(time.time()))
 
-        self.seed = seed
-        print(f"  Seed set to: {self.seed}\n")
+        self.seed = str(seed)
+        print(f"  Seed: {self.seed}\n")
         self.reset(self.seed)
 
-    def reset(self, seed=None):
+    # ── State ──────────────────────────────────────────────────────────────────
+
+    def reset(self, seed: str | None = None) -> None:
+        """Reset all game state.  Optionally update the seed first."""
         if seed is not None:
-            self.seed = seed
+            self.seed = str(seed)
         random.seed(self.seed)
 
-        self.snake      = [(10,10), (9,10), (8,10)]
-        self.dir        = RIGHT
-        self.food       = self._rand_food()
-        self.score      = 0
-        self.move_count = 0
-        self.state      = "playing"
-        self.path_hint  = []
-        self.strategy   = "bfs"
+        self.snake:      list[tuple[int, int]] = [CYCLE[2], CYCLE[1], CYCLE[0]]
+        self.dir:        tuple[int, int]       = RIGHT
+        self.food:       tuple[int, int]       = rand_cell(set(self.snake))
+        self.score:      int  = 0
+        self.move_count: int  = 0
+        self.state:      str  = "playing"
+        self.strategy:   str  = "idle"
+        self.path_hint:  list = []
 
-        self._wall_collisions = 0
-        self._self_collisions = 0
-        self._missed_food     = 0
-        self._move_log        = []
+        # Diagnostic counters (read by tests)
+        self._wall_collisions: int = 0
+        self._self_collisions: int = 0
+        self._move_log:        list[tuple[int, int]] = []
 
-    def _rand_food(self):
-        return rand_cell(set(self.snake))
+        # Build cycle from current starting position
+        self.solver = Solver()
 
-    def step(self):
+    # ── Simulation step ────────────────────────────────────────────────────────
+
+    def step(self) -> None:
+        """
+        Ask the solver for the next move, apply it, and update game state.
+
+        The solver's four-level safety check system runs inside
+        solver.next_move().  This method only executes the resulting move
+        and handles collision bookkeeping and win/loss detection.
+        """
+        if self.state != "playing":
+            return
+
         head      = self.snake[0]
         snake_set = set(self.snake)
 
         move = self.solver.next_move(self.snake, self.food)
 
-        path_to_food = bfs(head, self.food, snake_set, self.snake)
-        if path_to_food and move == path_to_food[0]:
-            self.strategy  = "bfs→food"
-            self.path_hint = path_to_food
-        elif move is not None:
-            tail = self.snake[-1]
-            path_tail = bfs(head, tail, snake_set, self.snake)
-            if path_tail and move == path_tail[0]:
-                self.strategy  = "tail-chase"
-                self.path_hint = path_tail
-            else:
-                self.strategy  = "flood-fill"
-                self.path_hint = []
-        else:
+        # Derive strategy from the move result first, then from the solver's
+        # internal attribute.  This way a mocked next_move() that returns None
+        # still produces strategy='trapped' without needing solver.strategy
+        # to be set as a side effect.
+        if move is None:
             self.strategy  = "trapped"
             self.path_hint = []
-
-        if move is None:
             self.state = "over"
             self._record_run()
             return
 
-        nx, ny   = head[0]+move[0], head[1]+move[1]
+        self.strategy  = self.solver.strategy
+        self.path_hint = self._compute_path_hint(head, snake_set)
+
+        nx, ny   = head[0] + move[0], head[1] + move[1]
         new_head = (nx, ny)
 
         if not (0 <= nx < COLS and 0 <= ny < ROWS):
@@ -231,16 +176,28 @@ class SnakeSolverGame:
 
         if new_head == self.food:
             self.score += 1
-            self.food   = self._rand_food()
             self._move_log.append((self.move_count, self.score))
+            if len(self.snake) < TOTAL_CELLS:
+                self.food = rand_cell(set(self.snake))
         else:
             self.snake.pop()
 
-        if len(self.snake) == COLS * ROWS:
+        if len(self.snake) == TOTAL_CELLS:
             self.state = "won"
             self._record_run()
 
-    def _record_run(self):
+    def _compute_path_hint(
+        self,
+        head:      tuple[int, int],
+        snake_set: set[tuple[int, int]],
+    ) -> list:
+        """Return the one-step direction to the next cycle cell (for the HUD overlay)."""
+        from solver_algorithm import _CYCLE_MAP, CYCLE
+        head_idx  = _CYCLE_MAP[head]
+        next_cell = CYCLE[(head_idx + 1) % len(CYCLE)]
+        return [(next_cell[0] - head[0], next_cell[1] - head[1])]
+
+    def _record_run(self) -> None:
         self.runs.append({
             "seed":    self.seed,
             "score":   self.score,
@@ -248,98 +205,133 @@ class SnakeSolverGame:
             "max_len": len(self.snake),
         })
 
-    def draw(self):
+    # ── Rendering ──────────────────────────────────────────────────────────────
+
+    def draw(self) -> None:
         self.screen.fill(C_BG)
         self._draw_grid()
         self._draw_path_hint()
         self._draw_food()
         self._draw_snake()
         self._draw_hud()
+
         if self.state == "over":
-            self._draw_overlay("SOLVER STOPPED",
-                "trapped / collision  |  R to restart")
+            self._draw_overlay(
+                "SOLVER STOPPED",
+                "trapped / collision  |  R to restart",
+            )
         elif self.state == "won":
-            self._draw_overlay("PERFECT SCORE",
-                f"{self.move_count} moves  |  R to restart")
+            self._draw_overlay(
+                "SUCCESS",
+                f"grid filled!  {self.move_count} moves  |  R to restart",
+            )
         elif self.paused:
             self._draw_overlay("PAUSED", "SPACE to resume")
+
         pygame.display.flip()
 
-    def _draw_grid(self):
-        for x in range(0, WIDTH+1, CELL):
-            pygame.draw.line(self.screen, C_GRID, (x,0), (x, ROWS*CELL))
-        for y in range(0, ROWS*CELL+1, CELL):
-            pygame.draw.line(self.screen, C_GRID, (0,y), (WIDTH,y))
+    def _draw_grid(self) -> None:
+        for x in range(0, WIDTH + 1, CELL):
+            pygame.draw.line(self.screen, C_GRID, (x, 0), (x, ROWS * CELL))
+        for y in range(0, ROWS * CELL + 1, CELL):
+            pygame.draw.line(self.screen, C_GRID, (0, y), (WIDTH, y))
 
-    def _draw_path_hint(self):
+    def _draw_path_hint(self) -> None:
         if not self.path_hint:
             return
-        surf = pygame.Surface((WIDTH, ROWS*CELL), pygame.SRCALPHA)
+        surf = pygame.Surface((WIDTH, ROWS * CELL), pygame.SRCALPHA)
         pos  = self.snake[0]
-        for d in self.path_hint:
-            pos = (pos[0]+d[0], pos[1]+d[1])
-            col = C_PATH if self.strategy == "bfs→food" else C_SAFE
-            pygame.draw.rect(surf, col,
-                             (pos[0]*CELL+4, pos[1]*CELL+4, CELL-8, CELL-8),
-                             border_radius=4)
-        self.screen.blit(surf, (0,0))
+        col  = C_PATH if self.strategy == "cycle" else C_SAFE  # spiral/tail-chase/flood-fill all green
+        for direction in self.path_hint:
+            pos = (pos[0] + direction[0], pos[1] + direction[1])
+            pygame.draw.rect(
+                surf, col,
+                (pos[0] * CELL + 4, pos[1] * CELL + 4, CELL - 8, CELL - 8),
+                border_radius=4,
+            )
+        self.screen.blit(surf, (0, 0))
 
-    def _draw_snake(self):
-        import math
-        for i, (cx,cy) in enumerate(self.snake):
-            rect   = pygame.Rect(cx*CELL+1, cy*CELL+1, CELL-2, CELL-2)
-            color  = C_HEAD if i==0 else (C_BODY_A if i%2==0 else C_BODY_B)
-            radius = 7 if i==0 else 4
+    def _draw_snake(self) -> None:
+        for i, (cx, cy) in enumerate(self.snake):
+            rect   = pygame.Rect(cx * CELL + 1, cy * CELL + 1, CELL - 2, CELL - 2)
+            color  = C_HEAD if i == 0 else (C_BODY_A if i % 2 == 0 else C_BODY_B)
+            radius = 7 if i == 0 else 4
             pygame.draw.rect(self.screen, color, rect, border_radius=radius)
-        hx,hy = self.snake[0]
-        cx = hx*CELL + CELL//2
-        cy = hy*CELL + CELL//2
+
+        hx, hy = self.snake[0]
+        cx = hx * CELL + CELL // 2
+        cy = hy * CELL + CELL // 2
         angle = math.atan2(self.dir[1], self.dir[0])
-        perp  = angle + math.pi/2
-        for sign in (+1,-1):
-            ex = int(cx + math.cos(angle)*5 + math.cos(perp)*sign*4)
-            ey = int(cy + math.sin(angle)*5 + math.sin(perp)*sign*4)
-            pygame.draw.circle(self.screen, (255,255,255), (ex,ey), 3)
-            pygame.draw.circle(self.screen, C_BG,
-                (int(ex+math.cos(angle)), int(ey+math.sin(angle))), 1)
+        perp  = angle + math.pi / 2
+        for sign in (+1, -1):
+            ex = int(cx + math.cos(angle) * 5 + math.cos(perp) * sign * 4)
+            ey = int(cy + math.sin(angle) * 5 + math.sin(perp) * sign * 4)
+            pygame.draw.circle(self.screen, (255, 255, 255), (ex, ey), 3)
+            pygame.draw.circle(
+                self.screen, C_BG,
+                (int(ex + math.cos(angle)), int(ey + math.sin(angle))), 1,
+            )
 
-    def _draw_food(self):
-        fx,fy = self.food
-        cx = fx*CELL + CELL//2
-        cy = fy*CELL + CELL//2
-        pygame.draw.circle(self.screen, C_FOOD,      (cx,cy), CELL//2-3)
-        pygame.draw.circle(self.screen, C_FOOD_SPOT, (cx-2,cy-2), 3)
+    def _draw_food(self) -> None:
+        fx, fy = self.food
+        cx = fx * CELL + CELL // 2
+        cy = fy * CELL + CELL // 2
+        pygame.draw.circle(self.screen, C_FOOD,      (cx, cy), CELL // 2 - 3)
+        pygame.draw.circle(self.screen, C_FOOD_SPOT, (cx - 2, cy - 2), 3)
 
-    def _draw_hud(self):
-        pygame.draw.rect(self.screen, C_HUD_BG,
-                         (0, HUD_Y, WIDTH, HEIGHT-HUD_Y))
-        pct  = len(self.snake) / (COLS*ROWS) * 100
-        info = (f"score {self.score}  |  moves {self.move_count}  |  "
-                f"len {len(self.snake)}/{COLS*ROWS} ({pct:.0f}%)  |  "
-                f"fps {self.fps}  |  strategy: {self.strategy}")
-        t = self.font_sm.render(info, True, C_MUTED)
-        self.screen.blit(t, (8, HUD_Y+8))
-        seed_t = self.font_sm.render(f"seed {self.seed}", True, C_GRID)
-        self.screen.blit(seed_t, (WIDTH - seed_t.get_width() - 8, HUD_Y+8))
-        bar_w = int((WIDTH-16) * len(self.snake)/(COLS*ROWS))
-        pygame.draw.rect(self.screen, C_GRID,   (8, HUD_Y+32, WIDTH-16, 6), border_radius=3)
-        pygame.draw.rect(self.screen, C_BODY_A, (8, HUD_Y+32, bar_w,    6), border_radius=3)
+    def _draw_hud(self) -> None:
+        pygame.draw.rect(self.screen, C_HUD_BG, (0, HUD_Y, WIDTH, HEIGHT - HUD_Y))
 
-    def _draw_overlay(self, title, sub):
-        surf = pygame.Surface((WIDTH, ROWS*CELL), pygame.SRCALPHA)
+        pct  = len(self.snake) / TOTAL_CELLS * 100
+        info = (
+            f"score {self.score}  |  moves {self.move_count}  |  "
+            f"len {len(self.snake)}/{TOTAL_CELLS} ({pct:.0f}%)  |  "
+            f"fps {self.fps}  |  strategy: {self.strategy}"
+        )
+        self.screen.blit(
+            self.font_sm.render(info, True, C_MUTED),
+            (8, HUD_Y + 8),
+        )
+        self.screen.blit(
+            self.font_sm.render(f"seed {self.seed}", True, C_GRID),
+            (WIDTH - self.font_sm.size(f"seed {self.seed}")[0] - 8, HUD_Y + 8),
+        )
+
+        bar_w = int((WIDTH - 16) * len(self.snake) / TOTAL_CELLS)
+        pygame.draw.rect(
+            self.screen, C_GRID,   (8, HUD_Y + 32, WIDTH - 16, 6), border_radius=3,
+        )
+        pygame.draw.rect(
+            self.screen, C_BODY_A, (8, HUD_Y + 32, bar_w,      6), border_radius=3,
+        )
+
+    def _draw_overlay(self, title: str, sub: str) -> None:
+        surf = pygame.Surface((WIDTH, ROWS * CELL), pygame.SRCALPHA)
         surf.fill(C_OVERLAY)
-        self.screen.blit(surf, (0,0))
+        self.screen.blit(surf, (0, 0))
         t = self.font_lg.render(title, True, C_TEXT)
         s = self.font_sm.render(sub,   True, C_MUTED)
-        self.screen.blit(t, t.get_rect(center=(WIDTH//2, ROWS*CELL//2-16)))
-        self.screen.blit(s, s.get_rect(center=(WIDTH//2, ROWS*CELL//2+16)))
+        self.screen.blit(t, t.get_rect(center=(WIDTH // 2, ROWS * CELL // 2 - 16)))
+        self.screen.blit(s, s.get_rect(center=(WIDTH // 2, ROWS * CELL // 2 + 16)))
 
-    def run(self):
+    # ── Main loop ──────────────────────────────────────────────────────────────
+
+    def run(self) -> str:
+        """
+        Run the solver game loop until the window is closed.
+
+        Returns
+        -------
+        str
+            The seed used for this session.
+        """
         while True:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self._print_run_summary()
-                    pygame.quit(); sys.exit()
+                    pygame.quit()
+                    return self.seed
+
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_SPACE:
                         self.paused = not self.paused
@@ -356,120 +348,17 @@ class SnakeSolverGame:
             self.draw()
             self.clock.tick(self.fps)
 
-    def _print_run_summary(self):
+    def _print_run_summary(self) -> None:
         print("\n── Run summary ─────────────────────────────────────────")
         for i, r in enumerate(self.runs, 1):
-            print(f"  Run {i}: seed={r['seed']}  score={r['score']}  "
-                  f"moves={r['moves']}  len={r['max_len']}/{COLS*ROWS}")
+            print(
+                f"  Run {i}: seed={r['seed']}  score={r['score']}  "
+                f"moves={r['moves']}  len={r['max_len']}/{TOTAL_CELLS}"
+            )
         print("────────────────────────────────────────────────────────\n")
 
 
-# ── Tests ─────────────────────────────────────────────────────────────────────
-def run_tests():
-    print("\n── Test suite ──────────────────────────────────────────")
-    solver = Solver()
-
-    random.seed(0)
-    snake = [(10,10),(9,10),(8,10)]
-    food  = (15,15)
-    wall_hits = self_hits = 0
-
-    def t1_rand_food(s):
-        occupied = set(s)
-        while True:
-            c = (random.randint(0,COLS-1), random.randint(0,ROWS-1))
-            if c not in occupied:
-                return c
-
-    for _ in range(500):
-        move = solver.next_move(snake, food)
-        if move is None:
-            break
-        head  = snake[0]
-        nx,ny = head[0]+move[0], head[1]+move[1]
-
-        if not (0 <= nx < COLS and 0 <= ny < ROWS):
-            wall_hits += 1
-            break
-
-        eating      = (nx,ny) == food
-        future_body = snake[:-1] if not eating else snake[:]
-
-        if (nx,ny) in set(future_body):
-            self_hits += 1
-            break
-
-        snake.insert(0,(nx,ny))
-        if eating:
-            food = t1_rand_food(snake)
-        else:
-            snake.pop()
-
-    assert wall_hits == 0, f"T1: {wall_hits} wall collision(s)"
-    assert self_hits == 0, f"T1: {self_hits} self collision(s)"
-    print("  PASS  T1 — solver never hit wall or itself across 500 steps")
-
-    random.seed(1)
-    snake     = [(10,10),(9,10),(8,10)]
-    food      = (12,10)
-    snake_set = set(snake)
-    path      = bfs(snake[0], food, snake_set, snake)
-    assert path is not None, "T2: expected path to exist"
-    move = solver.next_move(snake, food)
-    reached = False
-    pos = snake[0]
-    for d in path:
-        pos = (pos[0]+d[0], pos[1]+d[1])
-        if pos == food:
-            reached = True
-    assert reached,          "T2: path does not reach food"
-    assert move == path[0],  "T2: solver didn't take first step of BFS path"
-    print("  PASS  T2 — solver follows BFS path to food when safe path exists")
-
-    random.seed(42)
-    _COLS, _ROWS = 5, 5
-    _snake = [(2,2),(1,2),(0,2)]
-    _food  = (4,4)
-    _moves = 0
-    _score = 0
-    log    = []
-    for _ in range(200):
-        _set  = set(_snake)
-        _move = bfs(_snake[0], _food, _set, _snake)
-        if _move is None:
-            break
-        d = _move[0]
-        nh = (_snake[0][0]+d[0], _snake[0][1]+d[1])
-        if not (0<=nh[0]<_COLS and 0<=nh[1]<_ROWS) or nh in _set:
-            break
-        _snake.insert(0, nh)
-        _moves += 1
-        if nh == _food:
-            _score += 1
-            log.append((_moves, _score))
-            _food = (random.randint(0,_COLS-1), random.randint(0,_ROWS-1))
-        else:
-            _snake.pop()
-    assert _moves > 0, "T3: no moves recorded"
-    for i in range(1, len(log)):
-        prev_m, prev_s = log[i-1]
-        curr_m, curr_s = log[i]
-        assert curr_m > prev_m,   "T3: move count didn't increase between food"
-        assert curr_s == prev_s+1,"T3: score didn't increment by 1"
-    print(f"  PASS  T3 — move count accurate across {_moves} moves, {_score} food eaten")
-
-    snake = [(0,0)]
-    path  = bfs((0,0), (5,0), set(snake), snake)
-    assert path is not None and len(path)==5, "T4: wrong path length"
-    wall  = [(x,1) for x in range(COLS)] + [(x,0) for x in range(1,COLS)]
-    path2 = bfs((0,0),(COLS-1,0), set(wall), wall)
-    assert path2 is None, "T4: expected no path through wall"
-    print("  PASS  T4 — BFS finds shortest path and respects obstacles")
-
-    print("────────────────────────────────────────────────────────\n")
-
-
 # ── Entry point ───────────────────────────────────────────────────────────────
+
 if __name__ == "__main__":
-    run_tests()
     SnakeSolverGame().run()

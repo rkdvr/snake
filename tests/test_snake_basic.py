@@ -11,10 +11,10 @@ import random
 import pytest
 
 # ── Import module under test ──────────────────────────────────────────────────
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from src.snake_basic import (
+from snake_basic import (
     spawn_food,
     move_snake,
+    process_moves,
     check_collision,
     get_segment_char,
     DIRECTIONS,
@@ -90,13 +90,33 @@ class TestGrowth:
         assert ate_food
         assert len(new_snake) == len(snake) + 1
 
-    def test_snake_length_unchanged_without_food(self):
-        snake = [[10, 10], [9, 10]]
-        food = [0, 0]
+    def test_move_snake_always_prepends_head(self):
+        """
+        move_snake() always returns a snake one cell longer than the input.
+        It prepends the new head but never removes the tail — tail removal
+        is the caller's (process_moves) responsibility after checking for food.
+        """
+        snake     = [[10, 10], [9, 10]]
         new_snake = move_snake(snake, 'D')
-        no_eat = new_snake[0] != food
-        moved = new_snake[:-1] if no_eat else new_snake
-        assert len(moved) == len(snake)
+        assert len(new_snake) == len(snake) + 1
+        assert new_snake[0] == [11, 10]   # head advanced
+
+    def test_tail_trimmed_when_no_food_via_process_moves(self):
+        """
+        When the snake does not eat, process_moves removes the tail so the
+        overall length stays constant.  Test through process_moves, not
+        move_snake, because that is where trimming actually happens.
+        """
+        import random
+        random.seed(0)
+        snake     = [[4, 4]]
+        food      = [8, 8]        # far away — won't be eaten on one step
+        direction = 'D'
+        new_snake, new_food, new_dir, game_over = process_moves(
+            'D', snake, food, direction
+        )
+        assert not game_over
+        assert len(new_snake) == len(snake)   # length unchanged: tail trimmed
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -105,16 +125,16 @@ class TestGrowth:
 
 class TestWallCollision:
     def test_collision_top_wall(self):
-        assert check_collision([[10, -1], [10, 0]]) is not None
+        assert check_collision([[10, -1], [10, 0]]) is True
 
     def test_collision_bottom_wall(self):
-        assert check_collision([[10, GRID_HEIGHT], [10, GRID_HEIGHT - 1]]) is not None
+        assert check_collision([[10, GRID_HEIGHT], [10, GRID_HEIGHT - 1]]) is True
 
     def test_collision_left_wall(self):
-        assert check_collision([[-1, 10], [0, 10]]) is not None
+        assert check_collision([[-1, 10], [0, 10]]) is True
 
     def test_collision_right_wall(self):
-        assert check_collision([[GRID_WIDTH, 10], [GRID_WIDTH - 1, 10]]) is not None
+        assert check_collision([[GRID_WIDTH, 10], [GRID_WIDTH - 1, 10]]) is True
 
     def test_no_collision_inside_grid(self):
         assert check_collision([[4, 6], [3, 6]]) == False
@@ -127,7 +147,7 @@ class TestWallCollision:
 class TestSelfCollision:
     def test_collision_when_head_overlaps_body(self):
         snake = [[5, 5], [5, 6], [5, 7], [6, 7], [6, 6], [6, 5], [5, 5]]
-        assert check_collision(snake) is not None
+        assert check_collision(snake) is True
 
     def test_no_collision_when_body_is_clear(self):
         assert check_collision([[5, 5], [4, 5], [3, 5]]) == False
