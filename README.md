@@ -12,10 +12,10 @@ What makes Snake a compelling programming project is how naturally it maps to co
 A text-based Snake game that runs entirely in the terminal. Uses WASD keys to steer. No dependencies beyond Python.
 
 ### 2. Pygame (playable)
-A fully rendered Snake game with a 10×10 grid, smooth visuals, and keyboard controls. Steer with the arrow keys. The game tracks score, high score, and speed — which increases as you eat more food. Fills the board completely for a SUCCESS screen.
+A fully rendered Snake game with smooth visuals and keyboard controls. Steer with the arrow keys. The game tracks score, high score, and speed — which increases as you eat more food. Fills the board completely for a SUCCESS screen.
 
 ### 3. Solver (AI)
-An AI that plays Snake automatically and fills the entire 10×10 grid without ever dying. It follows a precomputed Hamiltonian cycle — a path that visits every cell exactly once — as its base strategy, and takes opportunistic shortcuts toward food when it is safe to do so. When the board is completely full, it displays a SUCCESS screen. You can pause, adjust speed, and restart via keyboard.
+An AI that plays Snake automatically and fills the entire grid without ever dying. It follows a precomputed Hamiltonian cycle — a path that visits every cell exactly once — as its base strategy, and takes opportunistic shortcuts toward food when it is safe to do so. When the board is completely full, it displays a SUCCESS screen. You can pause, adjust speed, and restart via keyboard.
 
 After closing the Pygame game, the main menu offers to run the Solver on the same seed so you can compare your route against the AI on the exact same board.
 
@@ -23,13 +23,18 @@ After closing the Pygame game, the main menu offers to run the Solver on the sam
 
 ## How the Solver Works
 
-The solver uses a **column-first boustrophedon Hamiltonian cycle**: row 0 is swept left to right, then each column from right to left alternates sweeping downward and upward. This creates a clockwise motion that fills the grid systematically.
+The solver uses three strategies that work together:
 
-On each step the solver:
-1. Defaults to the next cell on the Hamiltonian cycle (always safe — the snake can never trap itself following the cycle)
-2. Checks all four neighbouring cells for a **greedy shortcut**: if a neighbour is within the safe window between the head and tail on the cycle, and is closer to the food, the snake takes that shortcut instead
+**1. The Master Route (Hamiltonian Cycle)**
+Before the game starts, the solver maps out a path that visits every cell on the grid exactly once and loops back to the beginning. No matter what happens, the snake always has this route as its guaranteed plan. As long as it follows this route, it will never trap itself and will always fill the board completely.
 
-Shortcuts are disabled once the snake exceeds 80% board fill, at which point the snake follows the pure cycle to the end.
+**2. Opportunistic Shortcuts**
+While following the master route, the solver constantly looks for chances to grab food sooner. If a shortcut to the food is available and safe — meaning the snake won't cut off its own path back — it takes it. If not, it stays on the master route and waits for the food to come around naturally. Once the board is near full, shortcuts are disabled and the snake follows the master route to the finish.
+
+**3. Tail Chase (emergent)**
+Because the master route keeps the snake behind its own tail at all times, the snake naturally follows its tail around the board. This is not a separate decision — it is what following the route looks like in practice, most visible after a shortcut when the snake curves back to realign with its tail.
+
+In plain terms: **the snake has a guaranteed plan to win, looks for faster opportunities along the way, and by design is always chasing its own tail to stay safe.**
 
 ---
 
@@ -96,8 +101,8 @@ pytest tests/test_snake_solver.py
 snake/
 ├── src/
 │   ├── constants.py          grid dimensions, cell size, direction definitions
-│   ├── snake_basic.py        terminal Snake game (9×12, WASD)
-│   ├── snake_pygame.py       playable pygame Snake (10×10, arrow keys)
+│   ├── snake_basic.py        terminal Snake game (WASD controls)
+│   ├── snake_pygame.py       playable pygame Snake (arrow key controls)
 │   ├── snake_solver.py       AI solver game runner and visualiser
 │   └── solver_algorithm.py   Hamiltonian cycle + greedy shortcut solver logic
 ├── tests/
