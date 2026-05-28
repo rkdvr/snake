@@ -43,7 +43,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src
 
 # ── Menu ──────────────────────────────────────────────────────────────────────
 
-def _print_menu() -> None:
+def _print_menu(session_seed: str | None = None) -> None:
     print()
     print("  Snake")
     print("  " + "─" * 25)
@@ -51,32 +51,34 @@ def _print_menu() -> None:
     print("  2   Pygame      (playable)")
     print("  3   Solver      (AI)")
     print("  q   Quit")
+    if session_seed:
+        print(f"\n  Session seed: {session_seed}")
     print()
 
 
 # ── Mode runners ──────────────────────────────────────────────────────────────
 
-def _run_basic() -> None:
-    """Launch the terminal Snake game."""
+def _run_basic(suggested_seed: str | None = None) -> str | None:
+    """Launch the terminal Snake game.  Returns the seed used."""
     from snake_basic import main
-    main()
+    return main(suggested_seed=suggested_seed)
 
 
-def _run_pygame() -> None:
+def _run_pygame(suggested_seed: str | None = None) -> str | None:
     """
-    Launch the playable pygame Snake game.
+    Launch the playable pygame Snake game.  Returns the seed used.
 
     After the window closes, offer to hand the session seed to the solver
     so the user can watch the AI play the exact same board.
     """
     from snake_pygame import SnakeGame
 
-    game = SnakeGame()
+    game = SnakeGame(suggested_seed=suggested_seed)
     seed, solve_now = game.run()   # returns (seed, True) if S was pressed
 
     if solve_now:
         _run_solver(seed=seed)
-        return
+        return seed
 
     print(f"\n  Game ended — seed: {seed}")
     try:
@@ -86,24 +88,26 @@ def _run_pygame() -> None:
 
     if answer in ("", "y", "yes"):
         _run_solver(seed=seed)
+    return seed
 
 
-def _run_solver(seed: str | None = None) -> None:
+def _run_solver(seed: str | None = None, suggested_seed: str | None = None) -> str | None:
     """
-    Launch the AI solver game.
+    Launch the AI solver game.  Returns the seed used.
 
     Parameters
     ----------
     seed : str or None
         When called after _run_pygame(), the pygame session seed is passed
         directly so the solver reproduces the same board without prompting.
-        When called directly from the menu (seed=None), the solver prompts
-        for a seed as usual.
+    suggested_seed : str or None
+        Shown as the default prompt value when no explicit seed is given.
+        Used to carry the session seed across modes.
     """
     from snake_solver import SnakeSolverGame
 
-    game = SnakeSolverGame(seed=seed)
-    game.run()
+    game = SnakeSolverGame(seed=seed, suggested_seed=suggested_seed)
+    return game.run()
 
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
@@ -111,9 +115,10 @@ def _run_solver(seed: str | None = None) -> None:
 def main() -> None:
     """Run the main menu loop until the user quits."""
     print("\n  Welcome to Snake.")
+    session_seed: str | None = None
 
     while True:
-        _print_menu()
+        _print_menu(session_seed)
 
         try:
             choice = input("  Choice: ").strip().lower()
@@ -122,13 +127,19 @@ def main() -> None:
             break
 
         if choice == "1":
-            _run_basic()
+            seed = _run_basic(suggested_seed=session_seed)
+            if seed:
+                session_seed = str(seed)
 
         elif choice == "2":
-            _run_pygame()
+            seed = _run_pygame(suggested_seed=session_seed)
+            if seed:
+                session_seed = str(seed)
 
         elif choice == "3":
-            _run_solver()
+            seed = _run_solver(suggested_seed=session_seed)
+            if seed:
+                session_seed = str(seed)
 
         elif choice in ("q", "quit", "exit", ""):
             print("\n  Goodbye.")

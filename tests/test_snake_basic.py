@@ -31,26 +31,27 @@ from snake_basic import (
 class TestFoodSpawning:
     def test_food_not_on_snake(self):
         random.seed(42)
-        snake = [[10, 10]]
+        snake = [[GRID_WIDTH // 2, GRID_HEIGHT // 2]]
         food = spawn_food(snake)
         assert food not in snake
 
     def test_food_within_bounds(self):
         random.seed(42)
-        food = spawn_food([[10, 10]])
+        food = spawn_food([[GRID_WIDTH // 2, GRID_HEIGHT // 2]])
         assert 0 <= food[0] < GRID_WIDTH
         assert 0 <= food[1] < GRID_HEIGHT
 
     def test_same_seed_produces_same_food(self):
         random.seed(42)
-        food_a = spawn_food([[10, 10]])
+        food_a = spawn_food([[GRID_WIDTH // 2, GRID_HEIGHT // 2]])
         random.seed(42)
-        food_b = spawn_food([[10, 10]])
+        food_b = spawn_food([[GRID_WIDTH // 2, GRID_HEIGHT // 2]])
         assert food_a == food_b
 
     def test_food_not_on_long_snake(self):
         random.seed(0)
-        long_snake = [[i, 0] for i in range(18)]
+        # A full top row — the longest horizontal snake that fits the grid.
+        long_snake = [[i, 0] for i in range(GRID_WIDTH)]
         food = spawn_food(long_snake)
         assert food not in long_snake
 
@@ -61,20 +62,20 @@ class TestFoodSpawning:
 
 class TestMovement:
     def test_move_right_increases_x(self):
-        snake = [[10, 10]]
-        assert move_snake(snake, 'D')[0] == [11, 10]
+        snake = [[4, 4]]
+        assert move_snake(snake, 'D')[0] == [5, 4]
 
     def test_move_left_decreases_x(self):
-        snake = [[10, 10]]
-        assert move_snake(snake, 'A')[0] == [9, 10]
+        snake = [[4, 4]]
+        assert move_snake(snake, 'A')[0] == [3, 4]
 
     def test_move_up_decreases_y(self):
-        snake = [[10, 10]]
-        assert move_snake(snake, 'W')[0] == [10, 9]
+        snake = [[4, 4]]
+        assert move_snake(snake, 'W')[0] == [4, 3]
 
     def test_move_down_increases_y(self):
-        snake = [[10, 10]]
-        assert move_snake(snake, 'S')[0] == [10, 11]
+        snake = [[4, 4]]
+        assert move_snake(snake, 'S')[0] == [4, 5]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -83,8 +84,8 @@ class TestMovement:
 
 class TestGrowth:
     def test_snake_grows_when_food_eaten(self):
-        snake = [[10, 10]]
-        food = [11, 10]
+        snake = [[4, 4]]
+        food = [5, 4]
         new_snake = move_snake(snake, 'D')
         ate_food = new_snake[0] == food
         assert ate_food
@@ -96,10 +97,10 @@ class TestGrowth:
         It prepends the new head but never removes the tail — tail removal
         is the caller's (process_moves) responsibility after checking for food.
         """
-        snake     = [[10, 10], [9, 10]]
+        snake     = [[4, 4], [3, 4]]
         new_snake = move_snake(snake, 'D')
         assert len(new_snake) == len(snake) + 1
-        assert new_snake[0] == [11, 10]   # head advanced
+        assert new_snake[0] == [5, 4]   # head advanced
 
     def test_tail_trimmed_when_no_food_via_process_moves(self):
         """
@@ -125,16 +126,20 @@ class TestGrowth:
 
 class TestWallCollision:
     def test_collision_top_wall(self):
-        assert check_collision([[10, -1], [10, 0]]) is True
+        # x in-bounds, y above the grid — isolates the TOP wall.
+        assert check_collision([[5, -1], [5, 0]]) is True
 
     def test_collision_bottom_wall(self):
-        assert check_collision([[10, GRID_HEIGHT], [10, GRID_HEIGHT - 1]]) is True
+        # x in-bounds, y past the bottom — isolates the BOTTOM wall.
+        assert check_collision([[5, GRID_HEIGHT], [5, GRID_HEIGHT - 1]]) is True
 
     def test_collision_left_wall(self):
-        assert check_collision([[-1, 10], [0, 10]]) is True
+        # y in-bounds, x left of the grid — isolates the LEFT wall.
+        assert check_collision([[-1, 5], [0, 5]]) is True
 
     def test_collision_right_wall(self):
-        assert check_collision([[GRID_WIDTH, 10], [GRID_WIDTH - 1, 10]]) is True
+        # y in-bounds, x past the right edge — isolates the RIGHT wall.
+        assert check_collision([[GRID_WIDTH, 5], [GRID_WIDTH - 1, 5]]) is True
 
     def test_no_collision_inside_grid(self):
         assert check_collision([[4, 6], [3, 6]]) == False

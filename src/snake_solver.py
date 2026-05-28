@@ -72,7 +72,7 @@ class SnakeSolverGame:
         (used by main.py when handing over a seed from snake_pygame).
     """
 
-    def __init__(self, seed: str | int | None = None) -> None:
+    def __init__(self, seed: str | int | None = None, suggested_seed: str | None = None) -> None:
         pygame.init()
         self.screen  = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("Snake Solver")
@@ -85,8 +85,12 @@ class SnakeSolverGame:
         self.runs: list[dict] = []
 
         if seed is None:
-            raw  = input("Enter seed (press Enter for random): ").strip()
-            seed = raw if raw else str(int(time.time()))
+            if suggested_seed:
+                raw  = input(f"Enter seed (press Enter to reuse '{suggested_seed}'): ").strip()
+                seed = raw if raw else suggested_seed
+            else:
+                raw  = input("Enter seed (press Enter for random): ").strip()
+                seed = raw if raw else str(int(time.time()))
 
         self.seed = str(seed)
         print(f"  Seed: {self.seed}\n")
@@ -100,7 +104,7 @@ class SnakeSolverGame:
             self.seed = str(seed)
         random.seed(self.seed)
 
-        self.snake:      list[tuple[int, int]] = [CYCLE[2], CYCLE[1], CYCLE[0]]
+        self.snake:      list[tuple[int, int]] = [(COLS//2, ROWS//2), (COLS//2-1, ROWS//2), (COLS//2-2, ROWS//2)]
         self.dir:        tuple[int, int]       = RIGHT
         self.food:       tuple[int, int]       = rand_cell(set(self.snake))
         self.score:      int  = 0
@@ -212,15 +216,15 @@ class SnakeSolverGame:
         if self.state == "over":
             self._draw_overlay(
                 "SOLVER STOPPED",
-                "R restart   ·   Q quit",
+                "R restart   ·   Esc menu   ·   Q quit",
             )
         elif self.state == "won":
             self._draw_overlay(
                 "SUCCESS",
-                f"grid filled!   {self.move_count} moves   ·   R restart   ·   Q quit",
+                f"{self.move_count} moves · R restart · Esc menu · Q quit",
             )
         elif self.paused:
-            self._draw_overlay("PAUSED", "SPACE resume   ·   R restart   ·   Q quit")
+            self._draw_overlay("PAUSED", "SPACE resume   ·   R restart   ·   Esc menu   ·   Q quit")
 
         pygame.display.flip()
 
@@ -264,7 +268,7 @@ class SnakeSolverGame:
         )
         # Bottom row — commands
         cmds = self.font_sm.render(
-            "SPACE  pause     R  restart     Q  quit     +/-  speed",
+            "SPACE  pause     R  restart     Esc  menu     Q  quit     +/-  speed",
             True, C_MUTED,
         )
         self.screen.blit(stats, (8, HUD_Y + 8))
@@ -310,7 +314,11 @@ class SnakeSolverGame:
                     if event.key == pygame.K_q:
                         self._print_run_summary()
                         pygame.quit()
-                        import sys; sys.exit()
+                        sys.exit()
+                    elif event.key == pygame.K_ESCAPE:
+                        self._print_run_summary()
+                        pygame.quit()
+                        return self.seed   # exit game → back to main menu
                     elif event.key == pygame.K_SPACE:
                         self.paused = not self.paused
                     elif event.key == pygame.K_r:

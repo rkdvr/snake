@@ -125,7 +125,7 @@ class SnakeGame:
         user at startup.
     """
 
-    def __init__(self, seed: str | None = None) -> None:
+    def __init__(self, seed: str | None = None, suggested_seed: str | None = None) -> None:
         pygame.init()
         self.screen  = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("Snake")
@@ -134,9 +134,12 @@ class SnakeGame:
         self.font_sm = pygame.font.SysFont("Courier New", 16)
 
         if seed is None:
-            raw = input("Enter seed (press Enter for random): ").strip()
-            # Timestamp seed: unique per session, fully reproducible if noted.
-            seed = raw if raw else str(int(time.time()))
+            if suggested_seed:
+                raw  = input(f"Enter seed (press Enter to reuse '{suggested_seed}'): ").strip()
+                seed = raw if raw else suggested_seed
+            else:
+                raw  = input("Enter seed (press Enter for random): ").strip()
+                seed = raw if raw else str(int(time.time()))
 
         self.seed = seed
         random.seed(self.seed)
@@ -177,10 +180,6 @@ class SnakeGame:
             random.seed(self.seed)
             self.reset_game()
             return
-
-        if event.key == pygame.K_q:
-            pygame.quit()
-            import sys; sys.exit()
 
         if event.key == pygame.K_s:
             self._solve_requested = True
@@ -231,16 +230,16 @@ class SnakeGame:
         self._draw_hud()
 
         if self.state == "idle":
-            self._draw_overlay("SNAKE", "arrows move   ·   S solve   ·   R restart   ·   Q quit")
+            self._draw_overlay("SNAKE", "arrows · S solve · R restart · Esc menu · Q quit")
         elif self.state == "over":
             self._draw_overlay(
                 "GAME OVER",
-                f"score {self.score}   ·   R restart   ·   S solve   ·   Q quit",
+                f"score {self.score} · R restart · S solve · Esc menu · Q quit",
             )
         elif self.state == "won":
             self._draw_overlay(
                 "SUCCESS",
-                f"grid filled!  score {self.score}   ·   R restart   ·   S solve   ·   Q quit",
+                "grid filled! · R restart · S solve · Esc menu · Q quit",
             )
         pygame.display.flip()
 
@@ -266,7 +265,7 @@ class SnakeGame:
         )
         # Bottom row — commands
         cmds = self.font_sm.render(
-            "arrows  move     S  solve     R  restart     Q  quit",
+            "arrows  move     S  solve     R  restart     Esc  menu     Q  quit",
             True, C_MUTED,
         )
         self.screen.blit(stats, (8, HUD_Y + 8))
@@ -283,9 +282,9 @@ class SnakeGame:
 
     # ── Main loop ──────────────────────────────────────────────────────────────
 
-    def run(self) -> str:
+    def run(self) -> tuple[str, bool]:
         """
-        Run the game loop until the window is closed.
+        Run the game loop until the window is closed or the user exits.
 
         Returns
         -------
@@ -293,13 +292,25 @@ class SnakeGame:
             (seed, solve_requested).  seed is the session seed.
             solve_requested is True when the user pressed S, signalling
             main.py to launch the solver immediately without prompting.
+
+        Key bindings
+        ------------
+        Escape exit this game and return to the main menu.
+        Q      quit the program entirely.
         """
         while True:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
-                    return self.seed, False   # hand seed back to caller
-                self.handle_input(event)
+                    return self.seed, False
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_q:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    return self.seed, False   # exit game → back to main menu
+                else:
+                    self.handle_input(event)
 
             if self._solve_requested:
                 pygame.quit()

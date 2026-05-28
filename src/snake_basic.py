@@ -1,3 +1,4 @@
+import sys
 import os
 import random
 
@@ -80,6 +81,7 @@ def draw_board(snake, food):
     print(border_bottom)
 
     print(f'\nScore: {len(snake) - 1}')
+    print('  W/A/S/D move   M menu   Q quit')
 
 
 # ── Game logic ─────────────────────────────────────────────────────────────────
@@ -145,7 +147,7 @@ def process_moves(move_string, snake, food, direction):
 
 # ── Entry point ────────────────────────────────────────────────────────────────
 
-def main():
+def main(suggested_seed: str | None = None) -> str:
     clear_screen()
     print("╔══════════════════╗")
     print("║   S N A K E      ║")
@@ -153,8 +155,12 @@ def main():
     print("  W = up   S = down   A = left   D = right")
     print("  You can enter multiple moves at once (e.g. WWDDS).\n")
 
-    seed_input = input("Random seed (press Enter for default 42): ").strip()
-    seed = int(seed_input) if seed_input.isdigit() else 42
+    if suggested_seed:
+        seed_input = input(f"Random seed (press Enter to reuse '{suggested_seed}'): ").strip()
+        seed = seed_input if seed_input else suggested_seed
+    else:
+        seed_input = input("Random seed (press Enter for default 42): ").strip()
+        seed = seed_input if seed_input else "42"
     random.seed(seed)
     print(f"  Seed set to {seed}.\n")
 
@@ -178,12 +184,16 @@ def main():
             print(f'  ║   Grid filled! Score: {len(snake) - 1:<5}  ║')
             print(f'  ╚══════════════════════════════╝')
             print(f'  Seed used: {seed}')
-            return
+            return seed
 
     while not game_over:
         moves = input('\nYour move(s): ').upper().strip()
         if not moves:
             continue
+        if moves == 'Q':
+            sys.exit()
+        if moves == 'M':
+            return seed
         snake, food, direction, game_over = process_moves(moves, snake, food, direction)
 
         if game_over == "won":
@@ -192,7 +202,7 @@ def main():
             print(f'  ║   Grid filled! Score: {len(snake) - 1:<5}  ║')
             print(f'  ╚══════════════════════════════╝')
             print(f'  Seed used: {seed}')
-            return
+            return seed
 
     if game_over == "won":
         print(f'\n  ╔══════════════════════════════╗')
@@ -200,10 +210,11 @@ def main():
         print(f'  ║   Grid filled! Score: {len(snake) - 1:<5}  ║')
         print(f'  ╚══════════════════════════════╝')
         print(f'  Seed used: {seed}')
-        return
+        return seed
 
     print(f'\n  Game Over!  Final score: {len(snake) - 1}')
     print(f'  Seed used: {seed}')
+    return seed
 
 
 if __name__ == '__main__':

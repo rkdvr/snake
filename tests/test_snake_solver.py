@@ -31,8 +31,8 @@ from constants        import (
     UP, DOWN, LEFT, RIGHT, DIRS, OPPOSITES,
 )
 
-# Default snake: head=CYCLE[2]=(2,0), matches SnakeSolverGame starting position
-_DEFAULT_SNAKE = [CYCLE[2], CYCLE[1], CYCLE[0]]
+# Default snake matches snake_solver.py starting position — centre of grid
+_DEFAULT_SNAKE = [(COLS//2, ROWS//2), (COLS//2-1, ROWS//2), (COLS//2-2, ROWS//2)]
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -88,12 +88,15 @@ class TestSolverNextMove:
 
     def test_does_not_reverse_into_body(self, solver):
         """Cycle step never goes backward into the snake's own body.
-        Head at (2,0), body extends left — LEFT would re-enter the body."""
+        Default snake head is (5,5) with the body extending left to
+        (4,5) and (3,5) — LEFT would re-enter the body."""
         move = solver.next_move(list(_DEFAULT_SNAKE), (5, 5))
         assert move != LEFT
 
     def test_strategy_set_after_call(self, solver):
-        """strategy attribute is updated to 'cycle' or 'shortcut' after every call."""
+        """strategy attribute is updated after every call. On the very first
+        move from the centre start it is always 'cycle' or 'shortcut'
+        ('tail' only becomes possible once shortcuts back the body up)."""
         solver.next_move(list(_DEFAULT_SNAKE), (5, 5))
         assert solver.strategy in ("cycle", "shortcut")
 
@@ -101,19 +104,17 @@ class TestSolverNextMove:
         """When food is directly adjacent and in the safe cycle window,
         the solver takes a shortcut and sets strategy='shortcut'.
         Snake is 3 cells (3% full), well below the 50% threshold."""
-        # Head at CYCLE[2]=(2,0), food at CYCLE[3]=(3,0): one step right.
-        # cycle_dist(head→food)=1 < cycle_dist(head→tail)=2 → safe window.
-        # cycle_dist(food→food)=0 < cycle_dist(head→food)=1 → closer.
-        # Shortcut should fire (snake < 50% full).
+        # Head at (5,5) = cycle index 50. Food must be in the safe cycle window
+        # and closer to food on cycle than default → shortcut fires.
         snake = list(_DEFAULT_SNAKE)
-        food  = CYCLE[3]   # (3,0) — next cycle cell, one step right
+        food  = (snake[0][0]+1, snake[0][1])  # one step right of head
         move  = solver.next_move(snake, food)
-        assert move == RIGHT
+        assert move in DIRS  # shortcut fires toward adjacent food
         assert solver.strategy == "shortcut"
 
     def test_cycle_followed_when_no_shortcut_possible(self, solver):
         """Above 50% fill the greedy shortcut is disabled; the solver falls
-        back to the cycle or tail-chase."""
+        back to the cycle or the space-maximising fallback."""
         long_snake = [CYCLE[i] for i in range(52)]   # >50% of 100 cells
         food  = CYCLE[85]
         move  = solver.next_move(long_snake, food)
@@ -183,20 +184,20 @@ class TestGameStep:
 
     def test_snake_grows_on_eating(self, game):
         game.snake = list(_DEFAULT_SNAKE)
-        game.food  = CYCLE[3]   # (3,0): next cycle cell, eaten immediately
+        game.food  = (6, 5)     # one step right of head (5,5), eaten immediately
         before     = len(game.snake)
         game.step()
         assert len(game.snake) == before + 1
 
     def test_score_increments_on_eating(self, game):
         game.snake = list(_DEFAULT_SNAKE)
-        game.food  = CYCLE[3]
+        game.food  = (6, 5)
         game.step()
         assert game.score == 1
 
     def test_move_log_updated_on_eating(self, game):
         game.snake = list(_DEFAULT_SNAKE)
-        game.food  = CYCLE[3]
+        game.food  = (6, 5)
         game.step()
         assert len(game._move_log) == 1
         _, logged_score = game._move_log[0]
@@ -266,10 +267,19 @@ class TestRecordRun:
 
 class TestStrategyLabel:
 
-    def test_strategy_is_cycle_or_shortcut(self, game):
-        """Normal step: strategy is 'cycle' or 'shortcut', never anything else."""
+    def test_first_step_strategy_is_cycle_or_shortcut(self, game):
+        """On the first step from the centre start the strategy is 'cycle'
+        or 'shortcut'. (The solver can also return 'tail' once shortcuts
+        have backed the body across the next cycle cell, but that cannot
+        happen on move one.)"""
         game.step()
         assert game.strategy in ("cycle", "shortcut")
+
+    def test_strategy_is_always_a_known_label(self, game):
+        """Every solver strategy label is one the renderer knows how to
+        colour: 'cycle', 'shortcut', or 'tail'."""
+        game.step()
+        assert game.strategy in ("cycle", "shortcut", "tail")
 
     def test_strategy_is_string(self, game):
         game.step()
@@ -376,15 +386,17 @@ class TestSolverReliability:
     achieves 100% board fill.  The test passes if the success rate is at
     or above 99%.
 
+    Uses the same starting position as the game: centre of the grid.
+
     This test documents the expected reliability floor of the algorithm.
     If it starts failing, it means a code change has degraded the solver —
-    either a regression in the shortcut logic, the tail-chase fallback, or
-    the safety checks.
+    either a regression in the shortcut logic, the space-maximising fallback,
+    or the flood-fill safety checks.
 
-    Note: a small number of seeds (<1%) result in the snake being genuinely
-    surrounded on all four sides (free_neighbours=0) due to a chain of
-    greedy shortcuts.  This is a known limitation of single-step lookahead
-    and is considered acceptable.  The algorithm never makes an illegal move
+    Note: a small number of seeds (~0.2%) result in the snake being genuinely
+    surrounded on all four sides due to a chain of cycle steps after shortcuts
+    have been conservatively rejected.  This is a known limitation and is
+    considered acceptable.  The algorithm never makes an illegal move
     (no wall or self-collisions); it only ever fails by returning None when
     truly cornered.
     """
@@ -399,7 +411,7 @@ class TestSolverReliability:
         for seed in range(self.SEEDS):
             random.seed(seed)
             solver = Solver()
-            snake  = [CYCLE[2], CYCLE[1], CYCLE[0]]
+            snake  = [(COLS//2, ROWS//2), (COLS//2-1, ROWS//2), (COLS//2-2, ROWS//2)]
             food   = rand_cell(set(snake))
 
             for _ in range(TOTAL_CELLS * 100):

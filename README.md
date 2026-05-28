@@ -26,15 +26,12 @@ After closing the Pygame game, the main menu offers to run the Solver on the sam
 The solver uses three strategies that work together:
 
 **1. The Master Route (Hamiltonian Cycle)**
-
 Before the game starts, the solver maps out a path that visits every cell on the grid exactly once and loops back to the beginning. No matter what happens, the snake always has this route as its guaranteed plan. As long as it follows this route, it will never trap itself and will always fill the board completely.
 
 **2. Opportunistic Shortcuts**
-
 While following the master route, the solver constantly looks for chances to grab food sooner. If a shortcut to the food is available and safe — meaning the snake won't cut off its own path back — it takes it. If not, it stays on the master route and waits for the food to come around naturally. Once the board is near full, shortcuts are disabled and the snake follows the master route to the finish.
 
 **3. Tail Chase (emergent)**
-
 Because the master route keeps the snake behind its own tail at all times, the snake naturally follows its tail around the board. This is not a separate decision — it is what following the route looks like in practice, most visible after a shortcut when the snake curves back to realign with its tail.
 
 In plain terms: **the snake has a guaranteed plan to win, looks for faster opportunities along the way, and by design is always chasing its own tail to stay safe.**
@@ -46,32 +43,27 @@ In plain terms: **the snake has a guaranteed plan to win, looks for faster oppor
 The goal was 100% grid fill — a snake that never dies and always completes the board. We evaluated several approaches before landing on the current design.
 
 **Why not purely greedy (always chase food directly)?**
-
 A greedy solver is fast at collecting food early on, but it has no concept of the overall board state. As the snake grows longer, greedy paths increasingly partition the free space into disconnected regions, eventually boxing the snake into a corner with no escape. It works well at low fill and fails reliably at high fill.
 
 **Why a Hamiltonian cycle as the foundation?**
-
 A Hamiltonian cycle visits every cell exactly once before returning to the start. A snake that follows it perfectly will always fill the board — mathematically guaranteed, no exceptions. It also eliminates the self-trapping problem entirely: because the snake's body always occupies consecutive positions on the cycle, the next step is always outside the body. No runtime safety checks needed.
 
 **Why add greedy shortcuts on top?**
-
 Pure cycle following works but is slow — the snake visits every cell in a fixed order regardless of where food spawns. Adding opportunistic shortcuts lets the snake collect food sooner when it is safe to do so, reducing total moves without sacrificing the safety guarantee. The safety check is simple: a shortcut is only taken if the detour keeps the snake within the safe window between its head and its own tail on the cycle.
 
 **Why disable shortcuts past 50% fill?**
-
 At high fill, the snake is long and the safe window between head and tail is small. The risk of a shortcut disrupting the remaining path outweighs the benefit of collecting food a few steps sooner. Switching to pure cycle following at this point ensures a clean finish.
 
 **Why not a more optimal algorithm?**
-
-More optimal approaches — such as deep lookahead, A* on cycle positions, or reinforcement learning — exist and would reduce total move count. We chose this design because it is explainable, deterministic, and achieves the primary goal reliably on any grid size. Correctness and clarity were prioritised over speed optimisation.
+More optimal approaches exist but each carries significant computational cost. Deep lookahead must evaluate thousands of future board states every single move — that cost grows exponentially with snake length. A* on cycle positions becomes increasingly expensive as the board fills, and requires careful heuristic design that is hard to get right without extensive tuning. Reinforcement learning needs a training pipeline, substantial compute, and hundreds of thousands of simulated games before it produces a working policy. These are well-studied techniques in AI research, but running them in real time on a standard laptop with no GPU is impractical. The Hamiltonian cycle approach achieves the primary goal reliably with none of that overhead: each decision is a bounded index lookup, and the entire algorithm runs comfortably within a single frame.
 
 ---
 
 ## Disclaimer
 
-The solver achieves **100% board fill on approximately 99.5% of random seeds**, verified across 2,000 test runs. In rare cases (roughly 1 in 200 games), a sequence of greedy shortcuts can leave the snake with no safe move available — all four adjacent cells are occupied by its own body. When this happens, the game displays a "SOLVER STOPPED" screen and can be restarted.
+The solver achieves **100% board fill on approximately 99.8% of random seeds**, verified across 1,000 test runs. In rare cases (roughly 1 in 500 games), the snake reaches a position where all four adjacent cells are occupied by its own body. When this happens, the game displays a "SOLVER STOPPED" screen and can be restarted.
 
-This is a known limitation of the single-step safety check used by the shortcut logic. The algorithm never makes an illegal move (no wall collisions, no self-collisions) — it simply stops when it has no legal option left. A deeper lookahead would reduce this further but at significantly higher computational cost.
+This is a known limitation of the heuristic safety checks used by the shortcut logic. The algorithm never makes an illegal move (no wall collisions, no self-collisions) — it simply stops when it has no legal option left. These trapped states arise from the cycle itself at around 40% fill, not from shortcut decisions, and eliminating them entirely would require full-tree lookahead at significantly higher computational cost.
 
 A test (`TestSolverReliability`) is included in the test suite to verify the success rate stays at or above 99% across 1,000 seeds. If a future code change degrades the solver, this test will catch it.
 
@@ -86,7 +78,7 @@ A test (`TestSolverReliability`) is included in the test suite to verify the suc
 
 1. Clone the repo:
    ```
-   git clone https://github.com/rkdvr/snake.git
+   git clone <your-repo-url>
    cd snake
    ```
 
@@ -107,15 +99,22 @@ A test (`TestSolverReliability`) is included in the test suite to verify the suc
 
 | Mode | Key | Action |
 |---|---|---|
+| Basic | W / A / S / D | Steer up / left / down / right |
+| Basic | Multiple keys | Chain moves in one input (e.g. WWDDS) |
+| Basic | Enter | Submit moves |
+| Basic | M | Return to main menu |
+| Basic | Q | Quit program |
 | Pygame | Arrow keys | Steer the snake |
-| Pygame | R | Restart (game over screen) |
+| Pygame | R | Restart (game over screen only) |
 | Pygame | S | Hand off to the solver (same seed) |
-| Pygame | Q | Quit and close window |
+| Pygame | Esc | Return to main menu |
+| Pygame | Q | Quit program |
 | Solver | Space | Pause / resume |
 | Solver | R | Restart |
 | Solver | + / = | Speed up |
 | Solver | - | Slow down |
-| Solver | Q | Quit and close window |
+| Solver | Esc | Return to main menu |
+| Solver | Q | Quit program |
 
 ---
 
