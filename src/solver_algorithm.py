@@ -8,7 +8,7 @@ follows this cycle by default, guaranteeing the board will always be filled
 completely.
 
 On top of the cycle, a lightweight greedy shortcut fires when the snake is
-below 80% full: if any neighbouring cell is (a) within the safe cycle window
+below 50% full: if any neighbouring cell is (a) within the safe cycle window
 between head and tail, and (b) closer to the food on the cycle, the snake
 takes that shortcut instead of the cycle step.  This makes movement responsive
 to food without ever risking a trap — the cycle is always the safe fallback.
@@ -114,7 +114,7 @@ class Solver:
 
         Priority
         --------
-        1. Greedy shortcut toward food (when < 80% full and safe on cycle).
+        1. Greedy shortcut toward food (when < 50% full and safe on cycle).
         2. Follow the Hamiltonian cycle.
         3. Tail-chase fallback (BFS toward tail) when cycle step is blocked.
         4. Return None only if the snake is completely surrounded (should

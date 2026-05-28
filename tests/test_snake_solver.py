@@ -99,11 +99,12 @@ class TestSolverNextMove:
 
     def test_shortcut_fires_toward_food(self, solver):
         """When food is directly adjacent and in the safe cycle window,
-        the solver takes a shortcut and sets strategy='shortcut'."""
+        the solver takes a shortcut and sets strategy='shortcut'.
+        Snake is 3 cells (3% full), well below the 50% threshold."""
         # Head at CYCLE[2]=(2,0), food at CYCLE[3]=(3,0): one step right.
         # cycle_dist(head→food)=1 < cycle_dist(head→tail)=2 → safe window.
         # cycle_dist(food→food)=0 < cycle_dist(head→food)=1 → closer.
-        # Shortcut should fire.
+        # Shortcut should fire (snake < 50% full).
         snake = list(_DEFAULT_SNAKE)
         food  = CYCLE[3]   # (3,0) — next cycle cell, one step right
         move  = solver.next_move(snake, food)
