@@ -23,6 +23,8 @@ After closing the Pygame game, the main menu offers to run the Solver on the sam
 
 ## How the Solver Works
 
+**In a nutshell:** the snake plays on a simple instinct backed by a safety net. Its instinct is greedy — whenever it can spot a clear, safe path to the food, it heads straight for it. But chasing food blindly is exactly how a snake gets itself cornered, so when no safe shortcut is available, it falls back on a fixed loop that winds through every square on the board and returns to where it started. While riding that loop, the snake is really just trailing along behind its own tail, and because the tail is always moving one step ahead of where the body ends, it can keep this up forever without ever boxing itself in. As the board fills and space gets tight, it stops taking shortcuts entirely and simply rides the loop to the end, which guarantees every square gets filled. In short: grab the food fast when it's safe, follow your own tail when it isn't, and you can't lose.
+
 The solver uses three strategies that work together:
 
 **1. The Master Route (Hamiltonian Cycle)**
