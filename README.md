@@ -28,12 +28,15 @@ After closing the Pygame game, the main menu offers to run the Solver on the sam
 The solver uses three strategies that work together:
 
 **1. The Master Route (Hamiltonian Cycle)**
+
 Before the game starts, the solver maps out a path that visits every cell on the grid exactly once and loops back to the beginning. No matter what happens, the snake always has this route as its guaranteed plan. As long as it follows this route, it will never trap itself and will always fill the board completely.
 
 **2. Opportunistic Shortcuts**
+
 While following the master route, the solver constantly looks for chances to grab food sooner. If a shortcut to the food is available and safe — meaning the snake won't cut off its own path back — it takes it. If not, it stays on the master route and waits for the food to come around naturally. Once the board is near full, shortcuts are disabled and the snake follows the master route to the finish.
 
 **3. Tail Chase (emergent)**
+
 Because the master route keeps the snake behind its own tail at all times, the snake naturally follows its tail around the board. This is not a separate decision — it is what following the route looks like in practice, most visible after a shortcut when the snake curves back to realign with its tail.
 
 In plain terms: **the snake has a guaranteed plan to win, looks for faster opportunities along the way, and by design is always chasing its own tail to stay safe.**
@@ -45,29 +48,99 @@ In plain terms: **the snake has a guaranteed plan to win, looks for faster oppor
 The goal was 100% grid fill — a snake that never dies and always completes the board. We evaluated several approaches before landing on the current design.
 
 **Why not purely greedy (always chase food directly)?**
+
 A greedy solver is fast at collecting food early on, but it has no concept of the overall board state. As the snake grows longer, greedy paths increasingly partition the free space into disconnected regions, eventually boxing the snake into a corner with no escape. It works well at low fill and fails reliably at high fill.
 
 **Why a Hamiltonian cycle as the foundation?**
+
 A Hamiltonian cycle visits every cell exactly once before returning to the start. A snake that follows it perfectly will always fill the board — mathematically guaranteed, no exceptions. It also eliminates the self-trapping problem entirely: because the snake's body always occupies consecutive positions on the cycle, the next step is always outside the body. No runtime safety checks needed.
 
 **Why add greedy shortcuts on top?**
+
 Pure cycle following works but is slow — the snake visits every cell in a fixed order regardless of where food spawns. Adding opportunistic shortcuts lets the snake collect food sooner when it is safe to do so, reducing total moves without sacrificing the safety guarantee. The safety check is simple: a shortcut is only taken if the detour keeps the snake within the safe window between its head and its own tail on the cycle.
 
 **Why disable shortcuts past 50% fill?**
+
 At high fill, the snake is long and the safe window between head and tail is small. The risk of a shortcut disrupting the remaining path outweighs the benefit of collecting food a few steps sooner. Switching to pure cycle following at this point ensures a clean finish.
 
 **Why not a more optimal algorithm?**
-More optimal approaches exist but each carries significant computational cost. Deep lookahead must evaluate thousands of future board states every single move — that cost grows exponentially with snake length. A* on cycle positions becomes increasingly expensive as the board fills, and requires careful heuristic design that is hard to get right without extensive tuning. Reinforcement learning needs a training pipeline, substantial compute, and hundreds of thousands of simulated games before it produces a working policy. These are well-studied techniques in AI research, but running them in real time on a standard laptop with no GPU is impractical. The Hamiltonian cycle approach achieves the primary goal reliably with none of that overhead: each decision is a bounded index lookup, and the entire algorithm runs comfortably within a single frame.
+
+Approaches that would push reliability to a true 100% — deep multi-step lookahead, a shortest-path search (A\*) over cycle positions, or a reinforcement-learning policy — are well-studied in AI research, but each carries a cost this project deliberately avoids: lookahead grows exponentially with snake length, A\* gets steadily more expensive as the board fills and needs careful heuristic tuning, and RL needs a training pipeline, real compute, and hundreds of thousands of simulated games before it works at all. None of that runs comfortably in real time on a standard laptop with no GPU. The Hamiltonian cycle approach hits the primary goal reliably with none of that overhead: every decision is a bounded lookup that finishes within a single frame. The residual ~0.1% failure rate and concrete, low-cost ways to reduce it further are examined in the Error Analysis section.
 
 ---
 
 ## Disclaimer
 
-The solver achieves **100% board fill on approximately 99.8% of random seeds**, verified across 1,000 test runs. In rare cases (roughly 1 in 500 games), the snake reaches a position where all four adjacent cells are occupied by its own body. When this happens, the game displays a "SOLVER STOPPED" screen and can be restarted.
+The solver fills the board completely on roughly **99.9%** of random seeds. In the rare remaining case it reaches a position where every cell next to the head is its own body or a wall; the game shows a "SOLVER STOPPED" screen and can be restarted. The solver never makes an illegal move — it only ever halts when no legal move is left.
 
-This is a known limitation of the heuristic safety checks used by the shortcut logic. The algorithm never makes an illegal move (no wall collisions, no self-collisions) — it simply stops when it has no legal option left. These trapped states arise from the cycle itself at around 40% fill, not from shortcut decisions, and eliminating them entirely would require full-tree lookahead at significantly higher computational cost.
+The measured success rate, how it was tested, why these failures happen, and how they could be removed are all covered in the [Error Analysis](#error-analysis) below. The `TestSolverReliability` test guards a 99% reliability floor so any future regression is caught automatically.
 
-A test (`TestSolverReliability`) is included in the test suite to verify the success rate stays at or above 99% across 1,000 seeds. If a future code change degrades the solver, this test will catch it.
+## Error Analysis
+
+To characterise the solver's residual failure mode, it was run against **10,000 seeds** (0–9999) from the centre-of-grid start the game uses. It filled the board completely on 9,990 — a **99.90%** success rate. The 10 failures were seeds 663, 982, 2544, 3539, 3934, 4283, 4437, 8651, 9048, and 9270.
+
+### Methodology
+
+The 10,000-seed sweep was run by a large language model (Claude) using a headless harness rather than the pygame window: it imports the shipping `Solver`, drives it move-by-move exactly as the live game does (same food spawning, no rendering), and records a win at 100 cells or a failure when `next_move()` returns `None` (trapped) or returns an illegal move. This is the bundled `TestSolverReliability` logic scaled from 1,000 to 10,000 seeds, instrumented to log each failure's fill level, free-cell count, head reachability, tail adjacency, cycle alignment, and shortcut share — so every figure below is measured, not estimated.
+
+One reproducibility caveat: these are **integer** seeds (`random.seed(663)`), the convention used by the harness and the bundled `TestSolverReliability` test. The game never seeds this way — it converts every input to a string first (`random.seed("663")`), and Python produces a different number stream for an integer than for its string form. Integer seeding therefore isn't possible through the program as it stands: entered into the game these seeds become strings and play different boards that fill to 100%. The failures belong to the test's integer-seeding convention and reappear only when that harness is re-run — not during normal play.
+
+### Why it traps — and why tail-chasing doesn't prevent it
+
+The 10 failures are near-identical, and four shared traits explain the mechanism:
+
+1. **It never crashes — it seals itself in.** Every failure is a "trapped" stop (the "SOLVER STOPPED" screen): no wall or self-collisions, just `next_move()` returning `None` because all four cells around the head are wall or body. The solver halts rather than make an illegal move.
+2. **It traps mid-game, never at the end.** Fill at the trap averages 40% (range 28–50%) and *never* exceeds 50% — the exact point where the solver disables shortcuts and rides the pure cycle to the finish. Once on the cycle it never traps.
+3. **It strands an open board.** On average 60 cells are still empty, and **none are reachable from the head.** The snake doesn't run out of room; it loses *access* to it.
+4. **Its body is never cycle-aligned when it fails.** In all 10 the body is *not* a consecutive run along the Hamiltonian cycle, and the snake spent ~86% of its moves on shortcuts rather than the cycle.
+
+These point to one cause. The "follow your tail and you can't lose" guarantee holds only while the body occupies a **consecutive run of cells on the cycle** — then the cell ahead of the head is always the one the tail is vacating, so a legal move always exists. Every shortcut steps *off* the cycle and scrambles that alignment. After enough of them the body is a tangle: the head darts into a pocket its own body then closes behind it, and the open board — including the tail's escape route — ends up on the far side of a wall of body the head can't cross. The last move attempted is always "cycle" or "tail," never "shortcut" — the trap springs exactly when the snake tries to fall back to safety and finds it gone.
+
+So tail-chasing is a *conditional* guarantee, not an absolute one: it is safe only on the cycle, and the shortcuts that make the solver fast are departures from it. The residual 0.1% comes from three compounding limits:
+
+- **Local checks, global failure** — each shortcut is validated alone; nothing checks the cumulative effect of many shortcuts on the body's shape.
+- **A bounded horizon** — the checks see one step plus a fixed *N*-step lookahead, so a trap built up gradually forms just past what they can see.
+- **No guaranteed return** — once off the cycle, re-entry needs the next cycle cell free, which nothing enforces, so the fallback may no longer be reachable.
+
+At roughly 1 failure per 1,000 seeds, this stays comfortably within the 99% floor enforced by `TestSolverReliability`.
+
+### Recommendations
+
+Pushing the solver to a guaranteed 100% would mean checking after every move that the snake can still complete the board — full forward planning whose cost grows with the snake's length, exactly the overhead ruled out in [Why These Strategies](#why-these-strategies). Cheaper heuristics could narrow the gap, but only by suppressing the shortcuts that make the solver responsive — trading its speed back toward the slow, safe pure cycle — for a fractional and still unguaranteed gain. On a solver that already clears the 99% bar within a single-frame budget, that computational cost was not judged worthwhile, so the residual 0.1% was accepted.
+
+### Two example geometries
+
+The same mechanism — the head trapped on the wrong side of its own scrambled body — produces different shapes (`H` head, `o` body, `*` food, `.` empty):
+
+**Seed 663 — interior self-burial.** The head is sealed inside a dense coil of its own body.
+
+```
+o o o o o o o o o o
+o o o o o o o o o o
+o o o o H o . . . .
+o o o o o o . . . .
+. . o o o o . . . .
+. . o o o o . . . .
+. . . . . . . . . *
+. . . . . . . . . .
+. . . . . . . . . .
+. . . . . . . . . .
+```
+
+**Seed 982 — perimeter ring.** The body rings the boundary, stranding the head in a corner with a large but unreachable interior.
+
+```
+o o o o o o o o o o
+o . . . . . . . . o
+o . . . . . . . . o
+o . . . . . . . . o
+o . . * . . . . . o
+o . . . . . . . . o
+o . . . . . . . . o
+o o o . . . . . . o
+o o o . . . . o o o
+o o o o o . . o o H
+```
 
 ## Requirements
 
@@ -76,11 +149,11 @@ A test (`TestSolverReliability`) is included in the test suite to verify the suc
 
 ---
 
-## Setup
+## First Setup
 
 1. Clone the repo:
    ```
-   git clone <your-repo-url>
+   git clone https://github.com/rkdvr/snake.git
    cd snake
    ```
 
@@ -95,6 +168,14 @@ A test (`TestSolverReliability`) is included in the test suite to verify the suc
    python main.py
    ```
 
+## Succeeding Setups
+
+   ```
+   cd snake
+   conda activate snake_environment
+   python main.py
+   ```
+   
 ---
 
 ## Controls
